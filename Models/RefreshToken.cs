@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace glint_backend.Models;
 
+[Table("RefreshTokens")]
 public class RefreshToken
 {
     [Key]
