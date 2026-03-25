@@ -1,0 +1,6 @@
+@glint_backend_HostAddress = http://localhost:5247
+
+GET {{glint_backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
