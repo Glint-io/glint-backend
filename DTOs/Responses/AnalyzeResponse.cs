@@ -2,6 +2,7 @@ using glint_backend.Models;
 
 namespace glint_backend.DTOs.Responses;
 
+// DTO response format: AnalysisId, Label, Status, CreatedAt, List of AnalysisResultResponse (Method, Score, Feedback, CompletedAt).
 public class AnalyzeResponse
 {
     public Guid AnalysisId { get; set; }

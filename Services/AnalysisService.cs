@@ -1,5 +1,6 @@
 ﻿using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
+using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using glint_backend.Models;
 
@@ -11,24 +12,71 @@ public class AnalysisService(
     IJobAdvertisementRepository jobAdRepo,
     IFileValidationService fileValidator) : IAnalysisService
 {
-    public async Task<AnalyzeResponse> AnalyzeAsync(Guid userId, AnalyzeRequest request)
+    // ── Guest (stateless) ─────────────────────────────────────────────────────
+
+    public async Task<AnalyzeResponse> AnalyzeGuestAsync(byte[] pdfBytes, string jobText)
     {
-        // ── 1. Validate the uploaded PDF ──────────────────────────────────────
-        var validation = await fileValidator.ValidatePdfAsync(request.Resume);
-        if (!validation.IsValid)
-            throw new InvalidOperationException(validation.ErrorMessage);
+        var results = await RunAllMethodsAsync(Guid.Empty, pdfBytes, jobText);
 
-        // ── 2. Persist resume + job ad ────────────────────────────────────────
-        var resume = new Resume
+        // Nothing is persisted — build a transient response
+        return new AnalyzeResponse
         {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            FileName = request.Resume.FileName,
-            FileData = validation.FileBytes!,
-            UploadedAt = DateTime.UtcNow
+            AnalysisId = Guid.Empty,
+            Label = null,
+            Status = AnalysisStatus.Completed,
+            CreatedAt = DateTime.UtcNow,
+            Results = MapResults(results)
         };
-        await resumeRepo.AddAsync(resume);
+    }
 
+    // ── Authenticated ─────────────────────────────────────────────────────────
+
+    public async Task<AnalyzeResponse> AnalyzeAuthenticatedAsync(Guid userId, AnalyzeRequest request)
+    {
+        byte[] pdfBytes;
+
+        if (request.ResumeId.HasValue)
+        {
+            // Use an existing saved resume
+            var saved = await resumeRepo.GetByIdAsync(request.ResumeId.Value)
+                ?? throw new NotFoundException("Saved resume not found.");
+
+            if (saved.UserId != userId)
+                throw new NotFoundException("Saved resume not found."); // intentionally opaque
+
+            pdfBytes = saved.FileData;
+        }
+        else
+        {
+            // Validate and read the uploaded PDF
+            var validation = await fileValidator.ValidatePdfAsync(request.Resume!);
+            if (!validation.IsValid)
+                throw new InvalidOperationException(validation.ErrorMessage);
+
+            pdfBytes = validation.FileBytes!;
+        }
+
+        // get id to associate the analysis with. If new resume, create it and get the new ID. If existing resume, just use that ID.
+        Guid resumeId;
+        if (request.ResumeId.HasValue)
+        {
+            resumeId = request.ResumeId.Value;
+        }
+        else
+        {
+            var resume = new Resume
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FileName = request.Resume!.FileName,
+                FileData = pdfBytes,
+                UploadedAt = DateTime.UtcNow
+            };
+            await resumeRepo.AddAsync(resume);
+            resumeId = resume.Id;
+        }
+
+        // create a new jobAd for an analysis and link it to the user
         var jobAd = new JobAdvertisement
         {
             Id = Guid.NewGuid(),
@@ -38,12 +86,11 @@ public class AnalysisService(
         };
         await jobAdRepo.AddAsync(jobAd);
 
-        // ── 3. Create the Analysis record (InProgress) ────────────────────────
         var analysis = new Analysis
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            ResumeId = resume.Id,
+            ResumeId = resumeId,
             JobAdvertisementId = jobAd.Id,
             Label = request.Label,
             CreatedAt = DateTime.UtcNow,
@@ -51,21 +98,11 @@ public class AnalysisService(
         };
         await analysisRepo.AddAnalysisAsync(analysis);
 
-        // ── 4. Run all three methods concurrently ─────────────────────────────
+        // run the methods concurrently
         List<AnalysisResult> results;
         try
         {
-            var methods = new[]
-            {
-                AnalysisMethod.AI,
-                AnalysisMethod.RuleBased,
-                AnalysisMethod.Keyword
-            };
-
-            var tasks = methods.Select(method =>
-                RunMethodAsync(analysis.Id, method, validation.FileBytes!, request.JobText));
-
-            results = [.. await Task.WhenAll(tasks)];
+            results = await RunAllMethodsAsync(analysis.Id, pdfBytes, request.JobText);
 
             foreach (var r in results)
                 await analysisRepo.AddResultAsync(r);
@@ -81,45 +118,57 @@ public class AnalysisService(
 
         await analysisRepo.UpdateAnalysisAsync(analysis);
 
-        // ── 5. Map to response ────────────────────────────────────────────────
         return new AnalyzeResponse
         {
             AnalysisId = analysis.Id,
             Label = analysis.Label,
             Status = analysis.Status,
             CreatedAt = analysis.CreatedAt,
-            Results = results.Select(r => new AnalysisResultResponse
-            {
-                Id = r.Id,
-                Method = r.Method.ToString(),
-                Score = r.Score,
-                Feedback = r.Feedback,
-                CompletedAt = r.CompletedAt
-            }).ToList()
+            Results = MapResults(results)
         };
     }
 
-    // ── Per-method stubs ──────────────────────────────────────────────────────
-    // Replace each method body with your real implementation.
-    // They are intentionally separate so they can be unit-tested independently.
+    // Helpers for all methods
+
+    private static async Task<List<AnalysisResult>> RunAllMethodsAsync(
+        Guid analysisId, byte[] pdfBytes, string jobText)
+    {
+        var tasks = new[]
+        {
+            AnalysisMethod.AI,
+            AnalysisMethod.RuleBased,
+            AnalysisMethod.Keyword
+        }.Select(m => RunMethodAsync(analysisId, m, pdfBytes, jobText));
+
+        return [.. await Task.WhenAll(tasks)];
+    }
 
     private static Task<AnalysisResult> RunMethodAsync(
         Guid analysisId, AnalysisMethod method, byte[] pdfBytes, string jobText)
-    {
-        return method switch
+        => method switch
         {
             AnalysisMethod.AI => RunAiAsync(analysisId, pdfBytes, jobText),
             AnalysisMethod.RuleBased => RunRuleBasedAsync(analysisId, pdfBytes, jobText),
             AnalysisMethod.Keyword => RunKeywordAsync(analysisId, pdfBytes, jobText),
             _ => throw new ArgumentOutOfRangeException(nameof(method))
         };
-    }
 
+    private static List<AnalysisResultResponse> MapResults(List<AnalysisResult> results) =>
+        results.Select(r => new AnalysisResultResponse
+        {
+            Id = r.Id,
+            Method = r.Method.ToString(),
+            Score = r.Score,
+            Feedback = r.Feedback,
+            CompletedAt = r.CompletedAt
+        }).ToList();
+
+    
+    // not finnished methods
     private static async Task<AnalysisResult> RunAiAsync(
         Guid analysisId, byte[] pdfBytes, string jobText)
     {
-        await Task.CompletedTask; // TODO: call Claude / OpenAI API
-
+        await Task.CompletedTask;
         return new AnalysisResult
         {
             Id = Guid.NewGuid(),
@@ -134,8 +183,7 @@ public class AnalysisService(
     private static async Task<AnalysisResult> RunRuleBasedAsync(
         Guid analysisId, byte[] pdfBytes, string jobText)
     {
-        await Task.CompletedTask; // TODO: implement rule-based scoring
-
+        await Task.CompletedTask;
         return new AnalysisResult
         {
             Id = Guid.NewGuid(),
@@ -150,8 +198,7 @@ public class AnalysisService(
     private static async Task<AnalysisResult> RunKeywordAsync(
         Guid analysisId, byte[] pdfBytes, string jobText)
     {
-        await Task.CompletedTask; // TODO: implement keyword extraction + match
-
+        await Task.CompletedTask;
         return new AnalysisResult
         {
             Id = Guid.NewGuid(),

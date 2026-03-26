@@ -1,5 +1,7 @@
 namespace glint_backend.DTOs.Responses;
 
+// a DTO for statistics, based on the analysis history, containing total number of analyses, average score by method, and score trends over time.
+
 public class StatisticsResponse
 {
     public int TotalAnalyses { get; set; }

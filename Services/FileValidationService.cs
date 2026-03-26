@@ -19,12 +19,12 @@ public class FileValidationService : IFileValidationService
     [
         "/JavaScript",
         "/JS",
-        "/AA",            // Additional Actions
+        "/AA",
         "/OpenAction",
         "/Launch",
         "/EmbeddedFile",
         "/RichMedia",
-        "/XFA",           // XML Forms Architecture — common exploit vector
+        "/XFA",
         "eval(",
         "unescape(",
     ];
@@ -78,10 +78,6 @@ public class FileValidationService : IFileValidationService
         return true;
     }
 
-    /// <summary>
-    /// Returns the matched pattern if a malicious keyword is found,
-    /// or null if the file is clean.
-    /// </summary>
     private static string? ScanForMaliciousContent(byte[] bytes)
     {
         // Decode as Latin-1 so every byte maps to exactly one char —

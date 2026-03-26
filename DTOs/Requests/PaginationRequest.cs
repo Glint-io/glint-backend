@@ -2,6 +2,7 @@
 
 namespace glint_backend.DTOs.Requests;
 
+// DTO with pagination to make sure that there are not any unnecessary requests to the backend.
 public class PaginationRequest
 {
     [Range(1, int.MaxValue, ErrorMessage = "Page must be at least 1.")]

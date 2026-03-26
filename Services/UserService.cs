@@ -9,9 +9,11 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
     public async Task<PagedResponse<AnalysisHistoryItemResponse>> GetHistoryAsync(
         Guid userId, PaginationRequest pagination)
     {
+        // get paged analysis history
         var (items, total) = await analysisRepo.GetPagedByUserIdAsync(
             userId, pagination.Page, pagination.PageSize);
 
+        // map the items so that we only return the necessary fields to the client
         var mapped = items.Select(a => new AnalysisHistoryItemResponse
         {
             Id = a.Id,
@@ -32,6 +34,7 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             }).ToList()
         }).ToList();
 
+        // Return the paged response with the mapped items, current page, page size, and total count for pagination on the client side.
         return new PagedResponse<AnalysisHistoryItemResponse>
         {
             Items = mapped,
@@ -41,6 +44,7 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
         };
     }
 
+    // get overall statistics
     public async Task<StatisticsResponse> GetStatisticsAsync(Guid userId)
     {
         var results = (await analysisRepo.GetResultsByUserIdAsync(userId)).ToList();

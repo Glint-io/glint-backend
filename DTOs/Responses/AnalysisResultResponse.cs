@@ -1,5 +1,6 @@
 namespace glint_backend.DTOs.Responses;
 
+// DTO response format: Id, Method, Score, Feedback, CompletedAt.
 public class AnalysisResultResponse
 {
     public Guid Id { get; set; }

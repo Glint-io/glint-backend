@@ -1,5 +1,7 @@
 namespace glint_backend.DTOs.Responses;
 
+
+// DTO respones format : ID, Label, CreatedAt, Status, ResumeFileName, JobAdSnippet, List of AnalysisResultResponse (Method, Score, Feedback, CompletedAt).
 public class AnalysisHistoryItemResponse
 {
     public Guid Id { get; set; }
@@ -8,7 +10,6 @@ public class AnalysisHistoryItemResponse
     public string Status { get; set; } = string.Empty;
     public string ResumeFileName { get; set; } = string.Empty;
 
-    /// <summary>First 200 characters of the job ad text.</summary>
     public string JobAdSnippet { get; set; } = string.Empty;
 
     public List<AnalysisResultResponse> Results { get; set; } = [];
