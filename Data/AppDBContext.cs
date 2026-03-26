@@ -11,6 +11,7 @@ namespace glint_backend.Data
         public DbSet<Models.Analysis> Analyses { get; set; } = null!;
         public DbSet<Models.AnalysisResult> AnalysisResults { get; set; } = null!;
         public DbSet<Models.OneTimeCode> OneTimeCodes { get; set; } = null!;
+        public DbSet<Models.RefreshToken> RefreshTokens { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -1,8 +1,12 @@
 ﻿using glint_backend.Data;
+using glint_backend.Repositories;
+using glint_backend.Repositories.Interfaces;
+using glint_backend.Services;
+using glint_backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System;
 using System.Text;
 
 namespace glint_backend
@@ -18,6 +22,13 @@ namespace glint_backend
             {
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
             });
+
+            // ── Services & Repositories ───────────────────────────────────────────
+            builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IOtcRepository, OtcRepository>();
+            builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
 
             // ── Authentication (JWT) ──────────────────────────────────────────────
             var jwtKey = builder.Configuration["Jwt:Key"]
@@ -103,6 +114,14 @@ namespace glint_backend
                     options.SwaggerEndpoint("/swagger/v1/swagger.json", "Glint API v1");
                 });
             }
+
+            app.UseExceptionHandler(err => err.Run(async ctx =>
+            {
+                ctx.Response.StatusCode = 400;
+                ctx.Response.ContentType = "application/json";
+                var error = ctx.Features.Get<IExceptionHandlerFeature>();
+                await ctx.Response.WriteAsJsonAsync(new { error = error?.Error.Message });
+            }));
 
             // ── Middleware pipeline ───────────────────────────────────────────────
             app.UseHttpsRedirection();
