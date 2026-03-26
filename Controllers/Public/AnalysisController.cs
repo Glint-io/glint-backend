@@ -1,35 +1,73 @@
 ﻿using glint_backend.DTOs.Requests;
+using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace glint_backend.Controllers.Public;
 
 [ApiController]
 [Route("analyze")]
-public class AnalysisController(IAnalysisService analysisService) : ControllerBase
+public class AnalysisController(
+    IAnalysisService analysisService,
+    IFileValidationService fileValidator) : ControllerBase
 {
-    // ── Hardcoded until auth is implemented ───────────────────────────────────
-    // Replace with: Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!)
-    private static readonly Guid MockUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    // Guest must upload a PDF
+    // Authenticated User can upload a PDF  OR  supply a saved ResumeId.
 
-    // ── POST /analyze ─────────────────────────────────────────────────────────
-    // Rate limit: 5 requests/hr per user (stricter than the default 50/hr).
-    // Wire up AspNetCoreRateLimit or a similar middleware and tag this endpoint
-    // with the "analyze" policy in appsettings.json.
+    // Rate limit: wire up the "analyze" policy in appsettings.json
+    //   - Guests:         5 req/hr
+    //   - Authenticated: 50 req/hr
     [HttpPost]
     [RequestSizeLimit(5 * 1024 * 1024)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Analyze([FromForm] AnalyzeRequest request)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        // Determine if user is authenticated by checking for a NameIdentifier claim (user ID).
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var isAuthenticated = userIdClaim is not null;
+
         try
         {
-            var result = await analysisService.AnalyzeAsync(MockUserId, request);
+            // If guest, must upload a PDF
+            if (!isAuthenticated)
+            {
+                // Guests must always upload a file; ResumeId is not meaningful
+                if (request.Resume is null)
+                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
+
+                var validation = await fileValidator.ValidatePdfAsync(request.Resume);
+                if (!validation.IsValid)
+                    return BadRequest(new { error = validation.ErrorMessage });
+
+                var guestResult = await analysisService.AnalyzeGuestAsync(
+                    validation.FileBytes!, request.JobText);
+
+                return Ok(guestResult);
+            }
+
+            // If Authenticated, can upload a PDF OR supply a ResumeId.
+            var userId = Guid.Parse(userIdClaim!);
+
+            // Prevent ambiguity: if both a file and ResumeId are supplied, reject the request.
+            if (request.ResumeId.HasValue && request.Resume is not null)
+                return BadRequest(new
+                {
+                    error = "Supply either a Resume file or a ResumeId, not both."
+                });
+
+            var result = await analysisService.AnalyzeAuthenticatedAsync(userId, request);
             return Ok(result);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

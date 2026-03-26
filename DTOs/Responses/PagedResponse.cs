@@ -1,5 +1,6 @@
 namespace glint_backend.DTOs.Responses;
 
+// Generic DTO for paginated responses, containing items, pagination info, and metadata.
 public class PagedResponse<T>
 {
     public IEnumerable<T> Items { get; set; } = [];
