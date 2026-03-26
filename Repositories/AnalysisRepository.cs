@@ -1,0 +1,59 @@
+﻿using glint_backend.Data;
+using glint_backend.Interfaces;
+using glint_backend.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace glint_backend.Repositories;
+
+public class AnalysisRepository(AppDBContext db) : IAnalysisRepository
+{
+    public async Task<(IEnumerable<Analysis> Items, int TotalCount)> GetPagedByUserIdAsync(
+        Guid userId, int page, int pageSize)
+    {
+        // Fetch analyses for the user with pagination, including related entities like Results, Resume, and JobAdvertisement.
+        var query = db.Analyses
+            .Where(a => a.UserId == userId)
+            .Include(a => a.Results)
+            .Include(a => a.Resume)
+            .Include(a => a.JobAdvertisement)
+            .OrderByDescending(a => a.CreatedAt);
+
+        var total = await query.CountAsync();
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (items, total);
+    }
+
+    // Fetch all analysis results for a user with some additional filtering
+    public async Task<IEnumerable<AnalysisResult>> GetResultsByUserIdAsync(Guid userId) =>
+        await db.AnalysisResults
+            .Where(r => r.Analysis.UserId == userId && r.Score != null)
+            .Include(r => r.Analysis)
+            .OrderBy(r => r.Analysis.CreatedAt)
+            .ToListAsync();
+
+    // Methods for adding and updating analyses and results. These are used by the service layer to persist changes to the database.
+    public async Task<Analysis> AddAnalysisAsync(Analysis analysis)
+    {
+        db.Analyses.Add(analysis);
+        await db.SaveChangesAsync();
+        return analysis;
+    }
+    // Add a new analysis result to the database and return the saved entity with its generated ID.
+    public async Task<AnalysisResult> AddResultAsync(AnalysisResult result)
+    {
+        db.AnalysisResults.Add(result);
+        await db.SaveChangesAsync();
+        return result;
+    }
+    // Update an existing analysis.
+    public async Task UpdateAnalysisAsync(Analysis analysis)
+    {
+        db.Analyses.Update(analysis);
+        await db.SaveChangesAsync();
+    }
+}
