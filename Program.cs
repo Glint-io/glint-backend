@@ -9,7 +9,7 @@ namespace glint_backend
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -94,6 +94,9 @@ namespace glint_backend
 
             if (app.Environment.IsDevelopment())
             {
+                using var scope = app.Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+                await DbSeeder.SeedAsync(db);
                 app.UseSwagger();
                 app.UseSwaggerUI(options =>
                 {
