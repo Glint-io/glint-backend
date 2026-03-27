@@ -8,6 +8,10 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+// ── Required usings ───────────────────────────────────────────────────────────
+using glint_backend.Interfaces;
+using glint_backend.Repositories;
+using glint_backend.Services;
 
 namespace glint_backend
 {
@@ -101,6 +105,19 @@ namespace glint_backend
                 });
             });
 
+            // ── Dependency Injection: Repositories & Services ─────────────────────
+            // Repositories
+            builder.Services.AddScoped<IResumeRepository, ResumeRepository>();
+            builder.Services.AddScoped<IAnalysisRepository, AnalysisRepository>();
+            builder.Services.AddScoped<IJobAdvertisementRepository, JobAdvertisementRepository>();
+
+            // Services
+            builder.Services.AddScoped<IFileValidationService, FileValidationService>();
+            builder.Services.AddScoped<IResumeService, ResumeService>();
+            builder.Services.AddScoped<IAnalysisService, AnalysisService>();
+            builder.Services.AddScoped<IUserService, UserService>();
+
+            // ── Build App ─────────────────────────────────────────────────────────
             var app = builder.Build();
 
             if (app.Environment.IsDevelopment())
