@@ -48,6 +48,16 @@ public class ResumeService(
         };
     }
 
+    public async Task<List<ResumeListItemResponse>> GetAllAsync(Guid userId)
+    {
+        var resumes = await resumeRepo.GetAllByUserIdAsync(userId);
+        return resumes.Select(r => new ResumeListItemResponse
+        {
+            ResumeId = r.Id,
+            FileName = r.FileName,
+            UploadedAt = r.UploadedAt
+        }).ToList();
+    }
     public async Task DeleteAsync(Guid userId, Guid resumeId)
     {
         var resume = await resumeRepo.GetByIdAsync(resumeId)

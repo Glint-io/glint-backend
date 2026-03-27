@@ -1,4 +1,5 @@
 ﻿using glint_backend.DTOs.Requests;
+using glint_backend.DTOs.Responses;
 using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -64,6 +65,15 @@ public class UserController(
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    [HttpGet("resume")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetResumes()
+    {
+        var result = await resumeService.GetAllAsync(CurrentUserId);
+        return Ok(result);
+    }
+
 
     // Delete a saved resume by ID. Only the owner can delete their resume. If the resume does not exist, return 404. If the resume is currently in use for an analysis, return 409 Conflict.
     [HttpDelete("resume/{id:guid}")]
