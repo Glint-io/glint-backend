@@ -23,6 +23,13 @@ public class ResumeRepository(AppDBContext db) : IResumeRepository
     public async Task<int> CountByUserIdAsync(Guid userId) =>
         await db.Resumes.CountAsync(r => r.UserId == userId);
 
+    public async Task<List<Resume>> GetAllByUserIdAsync(Guid userId) =>
+    await db.Resumes
+        .Where(r => r.UserId == userId)
+        .OrderByDescending(r => r.UploadedAt)
+        .Select(r => new Resume { Id = r.Id, FileName = r.FileName, UploadedAt = r.UploadedAt })
+        .ToListAsync();
+
     // delete a resume
     public async Task DeleteAsync(Resume resume)
     {
