@@ -1,4 +1,6 @@
 ﻿using glint_backend.Data;
+// ── Required usings ───────────────────────────────────────────────────────────
+using glint_backend.Interfaces;
 using glint_backend.Repositories;
 using glint_backend.Repositories.Interfaces;
 using glint_backend.Services;
@@ -7,11 +9,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Net.Http.Headers;
 using System.Text;
-// ── Required usings ───────────────────────────────────────────────────────────
-using glint_backend.Interfaces;
-using glint_backend.Repositories;
-using glint_backend.Services;
 
 namespace glint_backend
 {
@@ -103,6 +102,12 @@ namespace glint_backend
                         .AllowAnyHeader()
                         .AllowAnyMethod();
                 });
+            });
+
+            builder.Services.AddHttpClient("Resend", client =>
+            {
+                client.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", builder.Configuration["Resend:ApiKey"]);
             });
 
             // ── Dependency Injection: Repositories & Services ─────────────────────

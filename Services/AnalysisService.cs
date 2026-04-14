@@ -18,7 +18,7 @@ public class AnalysisService(
     {
         var results = await RunAllMethodsAsync(Guid.Empty, pdfBytes, jobText);
 
-        // Nothing is persisted — build a transient response
+        // Nothing is persisted - build a transient response
         return new AnalyzeResponse
         {
             AnalysisId = Guid.Empty,

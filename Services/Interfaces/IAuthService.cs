@@ -9,5 +9,6 @@ namespace glint_backend.Services.Interfaces
         Task<AuthResponse> LoginWithOtcAsync(OtcLoginRequest request);
         Task VerifyEmailAsync(VerifyEmailRequest request);
         Task<AuthResponse> RefreshAsync(RefreshTokenRequest request);
+        Task ResendVerificationAsync(ResendVerificationRequest request);
     }
 }

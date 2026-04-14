@@ -9,5 +9,8 @@ namespace glint_backend.Repositories.Interfaces
         Task CreateAsync(OneTimeCode code);
         Task<OneTimeCode?> GetByCodeAsync(string code, OneTimeCodeType type);
         Task MarkUsedAsync(OneTimeCode code);
+        Task DeleteExpiredAsync();
+        Task DeleteAsync(Guid id);
+        Task InvalidateAllAsync(Guid userId, OneTimeCodeType type);
     }
 }

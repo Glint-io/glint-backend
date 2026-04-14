@@ -69,7 +69,7 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             })
             .ToList();
 
-        // Score over time — one data point per completed result
+        // Score over time - one data point per completed result
         var scoreOverTime = results
             .Where(r => r.Score.HasValue && r.CompletedAt.HasValue)
             .OrderBy(r => r.CompletedAt)
