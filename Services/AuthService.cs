@@ -49,22 +49,39 @@ namespace glint_backend.Services
                 UserId = user.Id,
                 Code = GenerateOtcCode(),
                 Type = OneTimeCodeType.EmailVerification,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                // Bumped to 30 min to match the template copy
+                ExpiresAt = DateTime.UtcNow.AddMinutes(30),
                 IsUsed = false
             };
 
             await _otcs.CreateAsync(otc);
 
-            await _email.SendAsync(
-                user.Email,
-                "Verify your Glint account",
-                $"Your verification code is: {otc.Code}\n\nIt expires in 15 minutes."
+            var (subject, html, plain) = EmailTemplates.BuildVerificationEmail(
+                otc.Code,
+                _config["Frontend:BaseUrl"]!
             );
+
+            try
+            {
+                await _email.SendAsync(user.Email, subject, html, plain);
+            }
+            catch (EmailDeliveryException)
+            {
+                // The email address is invalid or unreachable. Roll back the newly
+                // created user and OTC so the address is not left as a ghost account
+                // that can never be verified.
+                await _otcs.DeleteAsync(otc.Id);
+                await _users.DeleteAsync(user.Id);
+
+                // Re-throw so the controller can return a 422 with the user-facing message.
+                throw;
+            }
         }
 
-        private string GenerateOtcCode()
+        private static string GenerateOtcCode()
         {
-            return Random.Shared.Next(100000, 999999).ToString();
+            // Upper bound is exclusive, so 1_000_000 is required to include 999999.
+            return Random.Shared.Next(100_000, 1_000_000).ToString();
         }
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
@@ -194,6 +211,38 @@ namespace glint_backend.Services
                 AccessToken = accessToken,
                 RefreshToken = newRefreshToken.Token
             };
+        }
+
+        public async Task ResendVerificationAsync(ResendVerificationRequest request)
+        {
+            var user = await _users.GetByEmailAsync(request.Email);
+
+            // Don't leak whether an account exists — always return success to the caller.
+            // Only actually send if the user exists AND is unverified.
+            if (user is null || user.IsEmailVerified)
+                return;
+
+            // Invalidate any existing unused codes for this user so old links stop working.
+            await _otcs.InvalidateAllAsync(user.Id, OneTimeCodeType.EmailVerification);
+
+            var otc = new OneTimeCode
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Code = GenerateOtcCode(),
+                Type = OneTimeCodeType.EmailVerification,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(30),
+                IsUsed = false
+            };
+
+            await _otcs.CreateAsync(otc);
+
+            var (subject, html, plain) = EmailTemplates.BuildVerificationEmail(
+                otc.Code,
+                _config["Frontend:BaseUrl"]!
+            );
+
+            await _email.SendAsync(user.Email, subject, html, plain);
         }
     }
 }
