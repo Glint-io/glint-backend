@@ -47,6 +47,7 @@ public class UserController(
     // Upload new resume
     [HttpPost("resume")]
     [RequestSizeLimit(5 * 1024 * 1024)]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadResume(IFormFile file)
@@ -58,7 +59,7 @@ public class UserController(
         try
         {
             var result = await resumeService.UploadAsync(CurrentUserId, file);
-            return CreatedAtAction(null, new { id = result.ResumeId }, result);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
         catch (InvalidOperationException ex)
         {
@@ -72,6 +73,18 @@ public class UserController(
     {
         var result = await resumeService.GetAllAsync(CurrentUserId);
         return Ok(result);
+    }
+
+    [HttpGet("resume/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResume(Guid id)
+    {
+        var resume = await resumeService.GetByIdAsync(CurrentUserId, id);
+        if (resume is null)
+            return NotFound(new { error = "Resume not found." });
+
+        return File(resume.FileData, "application/pdf");
     }
 
 
