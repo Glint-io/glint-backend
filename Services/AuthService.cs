@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using static Org.BouncyCastle.Crypto.Engines.SM2Engine;
 
 namespace glint_backend.Services
 {
@@ -76,6 +77,9 @@ namespace glint_backend.Services
                 // Re-throw so the controller can return a 422 with the user-facing message.
                 throw;
             }
+            var verifyUrl = $"{_config["Frontend:BaseUrl"]}/auth/verify-email?code={otc.Code}";
+            var html = EmailService.BuildVerificationEmail(verifyUrl, otc.Code.ToString());
+            await _email.SendAsync(user.Email, "Verify your Glint email", html);
         }
 
         private static string GenerateOtcCode()
