@@ -56,4 +56,16 @@ public class AnalysisRepository(AppDBContext db) : IAnalysisRepository
         db.Analyses.Update(analysis);
         await db.SaveChangesAsync();
     }
+
+    public async Task DeleteByResumeIdAsync(Guid resumeId)
+    {
+        var analyses = await db.Analyses
+            .Include(a => a.Results)
+            .Where(a => a.ResumeId == resumeId)
+            .ToListAsync();
+
+        db.AnalysisResults.RemoveRange(analyses.SelectMany(a => a.Results));
+        db.Analyses.RemoveRange(analyses);
+        await db.SaveChangesAsync();
+    }
 }

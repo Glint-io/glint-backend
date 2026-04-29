@@ -25,7 +25,7 @@ namespace glint_backend.Data
                 .HasOne(a => a.Resume)
                 .WithMany(r => r.Analyses)
                 .HasForeignKey(a => a.ResumeId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<Models.Analysis>()
                 .HasOne(a => a.JobAdvertisement)

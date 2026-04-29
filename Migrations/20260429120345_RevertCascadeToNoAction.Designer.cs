@@ -12,8 +12,8 @@ using glint_backend.Data;
 namespace glint_backend.Migrations
 {
     [DbContext(typeof(AppDBContext))]
-    [Migration("20260429112408_FixCascadeDeleteResume")]
-    partial class FixCascadeDeleteResume
+    [Migration("20260429120345_RevertCascadeToNoAction")]
+    partial class RevertCascadeToNoAction
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -236,7 +236,7 @@ namespace glint_backend.Migrations
                     b.HasOne("glint_backend.Models.Resume", "Resume")
                         .WithMany("Analyses")
                         .HasForeignKey("ResumeId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("glint_backend.Models.User", "User")

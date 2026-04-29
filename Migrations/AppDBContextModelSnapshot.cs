@@ -233,7 +233,7 @@ namespace glint_backend.Migrations
                     b.HasOne("glint_backend.Models.Resume", "Resume")
                         .WithMany("Analyses")
                         .HasForeignKey("ResumeId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("glint_backend.Models.User", "User")
