@@ -67,11 +67,6 @@ public class ResumeService(
         if (resume.UserId != userId)
             throw new NotFoundException("Resume not found.");
 
-        // Guard: block deletion if the resume is linked to any analyses
-        if (resume.Analyses.Count > 0)
-            throw new ConflictException(
-                "This resume is linked to one or more analyses and cannot be deleted.");
-
         await resumeRepo.DeleteAsync(resume);
     }
 }
