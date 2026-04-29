@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using static Org.BouncyCastle.Crypto.Engines.SM2Engine;
 
 namespace glint_backend.Services
 {
@@ -55,11 +56,9 @@ namespace glint_backend.Services
 
             await _otcs.CreateAsync(otc);
 
-            await _email.SendAsync(
-                user.Email,
-                "Verify your Glint account",
-                $"Your verification code is: {otc.Code}\n\nIt expires in 15 minutes."
-            );
+            var verifyUrl = $"{_config["Frontend:BaseUrl"]}/auth/verify-email?code={otc.Code}";
+            var html = EmailService.BuildVerificationEmail(verifyUrl, otc.Code.ToString());
+            await _email.SendAsync(user.Email, "Verify your Glint email", html);
         }
 
         private string GenerateOtcCode()
