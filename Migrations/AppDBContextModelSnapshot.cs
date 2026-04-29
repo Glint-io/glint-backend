@@ -38,7 +38,7 @@ namespace glint_backend.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid>("ResumeId")
+                    b.Property<Guid?>("ResumeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
@@ -233,8 +233,7 @@ namespace glint_backend.Migrations
                     b.HasOne("glint_backend.Models.Resume", "Resume")
                         .WithMany("Analyses")
                         .HasForeignKey("ResumeId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("glint_backend.Models.User", "User")
                         .WithMany("Analyses")

@@ -18,8 +18,7 @@ public class Analysis
     [Required]
     public Guid UserId { get; set; }
 
-    [Required]
-    public Guid ResumeId { get; set; }
+    public Guid? ResumeId { get; set; }
 
     [Required]
     public Guid JobAdvertisementId { get; set; }
@@ -37,7 +36,7 @@ public class Analysis
     public User User { get; set; } = null!;
 
     [ForeignKey(nameof(ResumeId))]
-    public Resume Resume { get; set; } = null!;
+    public Resume? Resume { get; set; } = null!;
 
     [ForeignKey(nameof(JobAdvertisementId))]
     public JobAdvertisement JobAdvertisement { get; set; } = null!;

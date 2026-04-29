@@ -13,5 +13,6 @@ public interface IAnalysisRepository
     Task<AnalysisResult> AddResultAsync(AnalysisResult result);
     Task UpdateAnalysisAsync(Analysis analysis);
     Task DeleteByResumeIdAsync(Guid resumeId);
+    Task NullifyResumeIdAsync(Guid resumeId);
 
 }
