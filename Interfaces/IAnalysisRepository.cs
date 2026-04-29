@@ -4,7 +4,6 @@ namespace glint_backend.Interfaces;
 
 public interface IAnalysisRepository
 {
-    
     Task<(IEnumerable<Analysis> Items, int TotalCount)> GetPagedByUserIdAsync(
         Guid userId, int page, int pageSize);
     Task<IEnumerable<AnalysisResult>> GetResultsByUserIdAsync(Guid userId);
@@ -13,4 +12,6 @@ public interface IAnalysisRepository
     Task<Analysis> AddAnalysisAsync(Analysis analysis);
     Task<AnalysisResult> AddResultAsync(AnalysisResult result);
     Task UpdateAnalysisAsync(Analysis analysis);
+    Task DeleteByResumeIdAsync(Guid resumeId);
+
 }

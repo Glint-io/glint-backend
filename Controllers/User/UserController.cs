@@ -95,5 +95,9 @@ public class UserController(
         {
             return Conflict(new { error = ex.Message });
         }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
+        }
     }
 }
