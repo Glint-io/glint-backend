@@ -12,8 +12,8 @@ using glint_backend.Data;
 namespace glint_backend.Migrations
 {
     [DbContext(typeof(AppDBContext))]
-    [Migration("20260429120345_RevertCascadeToNoAction")]
-    partial class RevertCascadeToNoAction
+    [Migration("20260429123657_MakeResumeIdNullable")]
+    partial class MakeResumeIdNullable
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -41,7 +41,7 @@ namespace glint_backend.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid>("ResumeId")
+                    b.Property<Guid?>("ResumeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
@@ -236,8 +236,7 @@ namespace glint_backend.Migrations
                     b.HasOne("glint_backend.Models.Resume", "Resume")
                         .WithMany("Analyses")
                         .HasForeignKey("ResumeId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("glint_backend.Models.User", "User")
                         .WithMany("Analyses")

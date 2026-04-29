@@ -68,4 +68,11 @@ public class AnalysisRepository(AppDBContext db) : IAnalysisRepository
         db.Analyses.RemoveRange(analyses);
         await db.SaveChangesAsync();
     }
+
+    public async Task NullifyResumeIdAsync(Guid resumeId)
+    {
+        await db.Analyses
+            .Where(a => a.ResumeId == resumeId)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.ResumeId, (Guid?)null));
+    }
 }

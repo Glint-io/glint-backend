@@ -8,7 +8,8 @@ namespace glint_backend.Services;
 
 public class ResumeService(
     IResumeRepository resumeRepo,
-    IFileValidationService fileValidator) : IResumeService
+    IFileValidationService fileValidator,
+    IAnalysisRepository analysisRepo) : IResumeService
 {
     private const int MaxResumesPerUser = 3;
 
@@ -63,10 +64,10 @@ public class ResumeService(
         var resume = await resumeRepo.GetByIdAsync(resumeId)
             ?? throw new NotFoundException("Resume not found.");
 
-        // Ownership check
         if (resume.UserId != userId)
             throw new NotFoundException("Resume not found.");
 
+        await analysisRepo.NullifyResumeIdAsync(resumeId);
         await resumeRepo.DeleteAsync(resume);
     }
 }
