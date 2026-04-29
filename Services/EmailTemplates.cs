@@ -1,9 +1,4 @@
-﻿// EmailTemplates.cs
-// Place this in glint_backend/Services/ or a dedicated EmailTemplates/ folder.
-// Call BuildVerificationEmail() from your email-sending service when a user registers
-// or requests a new verification code.
-
-namespace glint_backend.Services;
+﻿namespace glint_backend.Services;
 
 public static class EmailTemplates
 {
@@ -21,7 +16,7 @@ public static class EmailTemplates
     public static (string Subject, string HtmlBody, string PlainBody) BuildVerificationEmail(
         string code,
         string frontendBaseUrl,
-        int expiresInMinutes = 30)
+        int expiresInMinutes = 15)
     {
         var verifyUrl = $"{frontendBaseUrl.TrimEnd('/')}/auth/verify-email?code={Uri.EscapeDataString(code)}";
         var subject = "Verify your Glint email";
@@ -29,33 +24,68 @@ public static class EmailTemplates
         var html = $$"""
             <!DOCTYPE html>
             <html lang="en">
-            <head>
-              <meta charset="UTF-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <title>Verify your email</title>
-              <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f9f6f0; margin:0; padding:32px 16px; }
-                .card { background:#fff; max-width:480px; margin:0 auto; border-radius:16px; padding:40px 36px; box-shadow:0 2px 12px rgba(0,0,0,.08); }
-                h1 { font-size:22px; color:#1a1208; margin:0 0 8px; }
-                p { font-size:15px; color:#5a4e3a; line-height:1.6; margin:0 0 20px; }
-                .code-box { background:#f3ede0; border:1px solid #e4d8c0; border-radius:10px; text-align:center; padding:20px; margin:24px 0; }
-                .code { font-size:36px; font-weight:700; letter-spacing:10px; color:#1a1208; font-family:monospace; }
-                .btn { display:inline-block; background:#e8a736; color:#2A1E0F; font-weight:600; font-size:15px; padding:14px 32px; border-radius:10px; text-decoration:none; margin:8px 0 24px; }
-                .muted { font-size:13px; color:#998877; }
-              </style>
-            </head>
-            <body>
-              <div class="card">
-                <h1>Verify your email</h1>
-                <p>Thanks for signing up for Glint! Use one of the two options below to confirm your address.</p>
-                <p><strong>Option 1 - click the button</strong> (easiest):</p>
-                <a href="{{verifyUrl}}" class="btn">Verify email</a>
-                <p><strong>Option 2 - enter the code</strong> in the app:</p>
-                <div class="code-box">
-                  <div class="code">{{code}}</div>
-                </div>
-                <p class="muted">This code expires in {{expiresInMinutes}} minutes. If you didn't create a Glint account, you can safely ignore this email.</p>
-              </div>
+            <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+            <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0;">
+                <tr><td align="center">
+                  <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+                    <!-- Header -->
+                    <tr>
+                      <td style="background:#18181b;padding:28px 40px;">
+                        <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">✦ Glint</p>
+                      </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                      <td style="padding:40px;">
+                        <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#18181b;letter-spacing:-0.4px;">Verify your email</h1>
+                        <p style="margin:0 0 28px;font-size:15px;color:#52525b;line-height:1.6;">
+                          Thanks for signing up for <strong style="color:#18181b;">Glint</strong>! Use one of the two options below to confirm your address.
+                        </p>
+
+                        <!-- Option 1 -->
+                        <p style="margin:0 0 14px;font-size:14px;font-weight:600;color:#18181b;">Option 1 — click the button <span style="font-weight:400;color:#71717a;">(easiest)</span></p>
+                        <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+                          <tr>
+                            <td style="background:#18181b;border-radius:8px;">
+                              <a href="{{verifyUrl}}" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">Verify email →</a>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Divider -->
+                        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+                          <tr>
+                            <td style="border-top:1px solid #e4e4e7;"></td>
+                          </tr>
+                        </table>
+
+                        <!-- Option 2 -->
+                        <p style="margin:0 0 14px;font-size:14px;font-weight:600;color:#18181b;">Option 2 — enter the code in the app</p>
+                        <div style="background:#f4f4f5;border:1px solid #e4e4e7;border-radius:10px;padding:20px;text-align:center;margin-bottom:32px;">
+                          <p style="margin:0 0 4px;font-size:12px;font-weight:500;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;">Your verification code</p>
+                          <p style="margin:0;font-size:36px;font-weight:700;color:#18181b;letter-spacing:8px;font-variant-numeric:tabular-nums;">{{code}}</p>
+                        </div>
+
+                        <!-- Footer note -->
+                        <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;">
+                          This code expires in <strong style="color:#71717a;">{{expiresInMinutes}} minutes</strong>. If you didn't create a Glint account, you can safely ignore this email.
+                        </p>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background:#fafafa;border-top:1px solid #f0f0f0;padding:20px 40px;">
+                        <p style="margin:0;font-size:12px;color:#a1a1aa;">© 2026 Glint · You're receiving this because you signed up.</p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td></tr>
+              </table>
             </body>
             </html>
             """;
