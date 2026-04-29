@@ -59,6 +59,16 @@ public class ResumeService(
             UploadedAt = r.UploadedAt
         }).ToList();
     }
+
+    public async Task<Resume?> GetByIdAsync(Guid userId, Guid resumeId)
+    {
+        var resume = await resumeRepo.GetByIdAsync(resumeId);
+        if (resume is null || resume.UserId != userId)
+            return null;
+
+        return resume;
+    }
+
     public async Task DeleteAsync(Guid userId, Guid resumeId)
     {
         var resume = await resumeRepo.GetByIdAsync(resumeId)
