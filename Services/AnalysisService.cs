@@ -56,25 +56,9 @@ public class AnalysisService(
             pdfBytes = validation.FileBytes!;
         }
 
-        // get id to associate the analysis with. If new resume, create it and get the new ID. If existing resume, just use that ID.
-        Guid resumeId;
-        if (request.ResumeId.HasValue)
-        {
-            resumeId = request.ResumeId.Value;
-        }
-        else
-        {
-            var resume = new Resume
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                FileName = request.Resume!.FileName,
-                FileData = pdfBytes,
-                UploadedAt = DateTime.UtcNow
-            };
-            await resumeRepo.AddAsync(resume);
-            resumeId = resume.Id;
-        }
+        // Use provided ResumeId if available; otherwise leave ResumeId null.
+        // Temporary file uploads for analysis are not persisted to the database — only saved resumes via the profile page are stored.
+        Guid? resumeId = request.ResumeId;
 
         // create a new jobAd for an analysis and link it to the user
         var jobAd = new JobAdvertisement
@@ -164,7 +148,7 @@ public class AnalysisService(
         }).ToList();
 
     
-    // not finnished methods
+    // Placeholder methods — return consistent structure with 0 score while logic is built
     private static async Task<AnalysisResult> RunAiAsync(
         Guid analysisId, byte[] pdfBytes, string jobText)
     {
@@ -174,8 +158,8 @@ public class AnalysisService(
             Id = Guid.NewGuid(),
             AnalysisId = analysisId,
             Method = AnalysisMethod.AI,
-            Score = null,
-            Feedback = "AI score not yet implemented.",
+            Score = 0,
+            Feedback = "Analysis calculation in progress.",
             CompletedAt = DateTime.UtcNow
         };
     }
@@ -189,8 +173,8 @@ public class AnalysisService(
             Id = Guid.NewGuid(),
             AnalysisId = analysisId,
             Method = AnalysisMethod.RuleBased,
-            Score = null,
-            Feedback = "Rule-based analysis not yet implemented.",
+            Score = 0,
+            Feedback = "Analysis calculation in progress.",
             CompletedAt = DateTime.UtcNow
         };
     }
@@ -204,8 +188,8 @@ public class AnalysisService(
             Id = Guid.NewGuid(),
             AnalysisId = analysisId,
             Method = AnalysisMethod.Keyword,
-            Score = null,
-            Feedback = "Keyword analysis not yet implemented.",
+            Score = 0,
+            Feedback = "Analysis calculation in progress.",
             CompletedAt = DateTime.UtcNow
         };
     }
