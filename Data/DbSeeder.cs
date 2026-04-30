@@ -20,6 +20,7 @@ public static class DbSeeder
         // ── Users ─────────────────────────────────────────────────────────────
         var userId1 = Guid.NewGuid();
         var userId2 = Guid.NewGuid();
+        var userId3 = Guid.NewGuid();
 
         await context.Users.AddRangeAsync(
             new User
@@ -37,6 +38,14 @@ public static class DbSeeder
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password2!"),
                 IsEmailVerified = true,
                 CreatedAt = DateTime.UtcNow.AddDays(-30)
+            },
+            new User
+            {
+                Id = userId3,
+                Email = "null@example.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Password3!"),
+                IsEmailVerified = true,
+                CreatedAt = DateTime.UtcNow.AddDays(-10)
             }
         );
 
