@@ -1,52 +1,73 @@
+using System;
+using System.Linq;
 using glint_backend.Models;
+using glint_backend.Interfaces;
 
 namespace glint_backend.Services.AnalysisServices;
 
 /// <summary>
 /// AI-based resume analysis using semantic understanding.
-/// 
-/// This service uses an external AI API (e.g., OpenAI, Anthropic) to perform semantic analysis
-/// on the relationship between a resume and a job description.
-/// 
-/// Process:
-/// 1. Extract text from the resume PDF
-/// 2. Send both resume text and job description to the AI API
-/// 3. Ask the AI to evaluate resume fit based on:
-///    - Skills alignment
-///    - Experience relevance
-///    - Culture/role fit
-///    - Overall match percentage
-/// 4. Parse the API response and extract the score (0-100) and detailed feedback
-/// 
-/// Configuration:
-/// - API Key: Store in appsettings.json under AiAnalysis:ApiKey
-/// - Model: Configure which AI model to use (e.g., gpt-4, claude-3)
-/// - Timeout: Set reasonable timeout for API calls
-/// 
-/// Returns:
-/// - Score: 0-100 (higher = better fit)
-/// - Feedback: Detailed explanation of the match, strengths, and areas to improve
+/// Placeholder implementation: simulated delay, 50% failure, and richer feedback.
 /// </summary>
-public class AiAnalysisService
+public class AiAnalysisService : IAiAnalysisService
 {
-    // Constructor injection of configuration and HTTP client
-    // Example: IHttpClientFactory, IConfiguration, ILogger
-    
     /// <summary>
     /// Performs AI-based analysis on resume vs job description.
     /// </summary>
-    /// <param name="resumeText">Extracted text from the resume PDF</param>
-    /// <param name="jobText">Full job description text</param>
-    /// <returns>Score and feedback from AI evaluation</returns>
     public async Task<(decimal Score, string Feedback)> AnalyzeAsync(string resumeText, string jobText)
     {
-        // TODO: Implement AI API call
-        // 1. Initialize AI client with API key from config
-        // 2. Construct prompt asking for resume evaluation
-        // 3. Send request with resume and job text
-        // 4. Parse response for score and feedback
-        // 5. Handle errors and timeouts gracefully
-        
-        throw new NotImplementedException("AI analysis not yet implemented.");
+        // Simulate realistic network/processing delay for AI service: 2-6 seconds
+        var delayMs = Random.Shared.Next(2000, 6001);
+        await Task.Delay(delayMs);
+
+        // 50/50 chance to simulate a failure in the placeholder
+        if (Random.Shared.Next(0, 2) == 0)
+            throw new InvalidOperationException("AI analysis placeholder failed.");
+
+        // Very simple keyword overlap as a signal
+        var resumeKeys = ExtractKeywords(resumeText);
+        var jobKeys = ExtractKeywords(jobText);
+        var matched = resumeKeys.Intersect(jobKeys).ToList();
+        var totalJobKeys = Math.Max(1, jobKeys.Count);
+        var keywordScore = (decimal)matched.Count / totalJobKeys * 100m;
+
+        // Simulated semantic confidence component (random but biased higher)
+        var semanticComponent = (decimal)Random.Shared.Next(60, 96);
+
+        // Weighted final score: 60% semantic, 40% keyword overlap
+        var finalScore = Math.Round((semanticComponent * 0.6m) + (keywordScore * 0.4m), 2);
+
+        // Build feedback with some details
+        var feedbackLines = new System.Collections.Generic.List<string>();
+        feedbackLines.Add($"AI placeholder analysis (simulated). Processing took {delayMs}ms.");
+        feedbackLines.Add($"Overall (simulated) fit score: {finalScore} / 100");
+
+        if (matched.Any())
+            feedbackLines.Add($"Top matched keywords: {string.Join(", ", matched.Take(10))}");
+        else
+            feedbackLines.Add("No clear keyword matches found between resume and job description.");
+
+        // Provide actionable suggestions (placeholder)
+        feedbackLines.Add("Suggestions: emphasize relevant skills in your summary, add specific keywords from the job description, and quantify achievements where possible.");
+
+        var feedback = string.Join("\n", feedbackLines);
+        return (finalScore, feedback);
+    }
+
+    private static System.Collections.Generic.List<string> ExtractKeywords(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return new System.Collections.Generic.List<string>();
+
+        var separators = new[] { ' ', '\n', '\r', '\t', ',', '.', ';', ':', '/', '\\', '(', ')', '[', ']', '"', '\'', '-', '_'};
+        var tokens = text
+            .ToLowerInvariant()
+            .Split(separators, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 2)
+            .Distinct()
+            .ToList();
+
+        return tokens;
     }
 }

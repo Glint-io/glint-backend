@@ -5,6 +5,7 @@ using glint_backend.Repositories;
 using glint_backend.Repositories.Interfaces;
 using glint_backend.Services;
 using glint_backend.Services.Interfaces;
+using glint_backend.Services.AnalysisServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
@@ -115,6 +116,11 @@ namespace glint_backend
             builder.Services.AddScoped<IResumeRepository, ResumeRepository>();
             builder.Services.AddScoped<IAnalysisRepository, AnalysisRepository>();
             builder.Services.AddScoped<IJobAdvertisementRepository, JobAdvertisementRepository>();
+
+            // Analysis sub-services
+            builder.Services.AddScoped<IAiAnalysisService, AiAnalysisService>();
+            builder.Services.AddScoped<IRuleBasedAnalysisService, RuleBasedAnalysisService>();
+            builder.Services.AddScoped<IKeywordAnalysisService, KeywordAnalysisService>();
 
             // Services
             builder.Services.AddScoped<IFileValidationService, FileValidationService>();
