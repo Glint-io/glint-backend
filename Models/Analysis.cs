@@ -24,7 +24,7 @@ public class Analysis
     public Guid JobAdvertisementId { get; set; }
 
     [MaxLength(100)]
-    public string? Label { get; set; }
+    public string? JobTitle { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

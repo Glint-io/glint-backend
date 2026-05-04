@@ -5,6 +5,6 @@ namespace glint_backend.Interfaces
 {
     public interface IKeywordAnalysisService
     {
-        Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, string jobText);
+        Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, JobAdvertisement jobAdvertisement);
     }
 }

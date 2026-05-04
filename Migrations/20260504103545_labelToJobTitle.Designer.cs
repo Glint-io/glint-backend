@@ -12,8 +12,8 @@ using glint_backend.Data;
 namespace glint_backend.Migrations
 {
     [DbContext(typeof(AppDBContext))]
-    [Migration("20260325110144_init")]
-    partial class init
+    [Migration("20260504103545_labelToJobTitle")]
+    partial class labelToJobTitle
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -41,7 +41,7 @@ namespace glint_backend.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid>("ResumeId")
+                    b.Property<Guid?>("ResumeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Status")
@@ -101,6 +101,10 @@ namespace glint_backend.Migrations
                     b.Property<string>("RawText")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
@@ -167,7 +171,7 @@ namespace glint_backend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshToken");
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("glint_backend.Models.Resume", b =>
@@ -236,8 +240,7 @@ namespace glint_backend.Migrations
                     b.HasOne("glint_backend.Models.Resume", "Resume")
                         .WithMany("Analyses")
                         .HasForeignKey("ResumeId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("glint_backend.Models.User", "User")
                         .WithMany("Analyses")

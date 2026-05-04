@@ -17,7 +17,7 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
         var mapped = items.Select(a => new AnalysisHistoryItemResponse
         {
             Id = a.Id,
-            Label = a.Label,
+            JobTitle = a.JobTitle,
             CreatedAt = a.CreatedAt,
             Status = a.Status.ToString(),
             ResumeFileName = a.Resume?.FileName ?? string.Empty,
