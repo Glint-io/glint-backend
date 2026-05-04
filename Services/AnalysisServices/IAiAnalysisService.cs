@@ -1,9 +1,10 @@
+using glint_backend.Models;
 using System.Threading.Tasks;
 
 namespace glint_backend.Interfaces
 {
     public interface IAiAnalysisService
     {
-        Task<(decimal Score, string Feedback)> AnalyzeAsync(string resumeText, string jobText);
+        Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, string jobText);
     }
 }
