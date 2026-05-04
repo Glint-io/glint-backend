@@ -1,9 +1,10 @@
 ﻿using glint_backend.DTOs.Requests;
+using glint_backend.DTOs.Responses;
 using glint_backend.Exceptions;
 using glint_backend.Interfaces;
-using glint_backend.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace glint_backend.Controllers.Public;
 
@@ -13,12 +14,8 @@ public class AnalysisController(
     IAnalysisService analysisService,
     IFileValidationService fileValidator) : ControllerBase
 {
-    // Guest must upload a PDF
-    // Authenticated User can upload a PDF  OR  supply a saved ResumeId.
+    // ── Standard (waits for all 3, returns combined result) ──────────────────
 
-    // Rate limit: wire up the "analyze" policy in appsettings.json
-    //   - Guests:         5 req/hr
-    //   - Authenticated: 50 req/hr
     [HttpPost]
     [RequestSizeLimit(5 * 1024 * 1024)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -30,16 +27,13 @@ public class AnalysisController(
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        // Determine if user is authenticated by checking for a NameIdentifier claim (user ID).
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = userIdClaim is not null;
 
         try
         {
-            // If guest, must upload a PDF
             if (!isAuthenticated)
             {
-                // Guests must always upload a file; ResumeId is not meaningful
                 if (request.Resume is null)
                     return BadRequest(new { error = "A resume PDF is required for guest analysis." });
 
@@ -53,15 +47,10 @@ public class AnalysisController(
                 return Ok(guestResult);
             }
 
-            // If Authenticated, can upload a PDF OR supply a ResumeId.
             var userId = Guid.Parse(userIdClaim!);
 
-            // Prevent ambiguity: if both a file and ResumeId are supplied, reject the request.
             if (request.ResumeId.HasValue && request.Resume is not null)
-                return BadRequest(new
-                {
-                    error = "Supply either a Resume file or a ResumeId, not both."
-                });
+                return BadRequest(new { error = "Supply either a Resume file or a ResumeId, not both." });
 
             var result = await analysisService.AnalyzeAuthenticatedAsync(userId, request);
             return Ok(result);
@@ -76,164 +65,66 @@ public class AnalysisController(
         }
     }
 
-    // Dynamic endpoints for individual analysis methods
+    // ── SSE streaming (emits each method result as it completes) ─────────────
 
-    [HttpPost("ai")]
+    [HttpPost("stream")]
     [RequestSizeLimit(5 * 1024 * 1024)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> AnalyzeAi([FromForm] AnalyzeRequest request)
+    public async Task AnalyzeStream([FromForm] AnalyzeRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+        {
+            Response.StatusCode = 400;
+            return;
+        }
 
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = userIdClaim is not null;
 
-        try
+        byte[]? pdfBytes = null;
+        Guid? userId = null;
+
+        if (!isAuthenticated)
         {
-            if (!isAuthenticated)
-            {
-                if (request.Resume is null)
-                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
+            if (request.Resume is null) { Response.StatusCode = 400; return; }
 
-                var validation = await fileValidator.ValidatePdfAsync(request.Resume);
-                if (!validation.IsValid)
-                    return BadRequest(new { error = validation.ErrorMessage });
+            var validation = await fileValidator.ValidatePdfAsync(request.Resume);
+            if (!validation.IsValid) { Response.StatusCode = 400; return; }
 
-                var result = await analysisService.AnalyzeGuestMethodAsync(
-                    validation.FileBytes!, request.JobText, AnalysisMethod.AI);
-
-                return Ok(result);
-            }
-
-            var userId = Guid.Parse(userIdClaim!);
+            pdfBytes = validation.FileBytes!;
+        }
+        else
+        {
+            userId = Guid.Parse(userIdClaim!);
 
             if (request.ResumeId.HasValue && request.Resume is not null)
-                return BadRequest(new
-                {
-                    error = "Supply either a Resume file or a ResumeId, not both."
-                });
-
-            var authResult = await analysisService.AnalyzeAuthenticatedMethodAsync(
-                userId, request, AnalysisMethod.AI);
-            return Ok(authResult);
+            {
+                Response.StatusCode = 400;
+                return;
+            }
         }
-        catch (NotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
 
-    [HttpPost("keyword")]
-    [RequestSizeLimit(5 * 1024 * 1024)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> AnalyzeKeyword([FromForm] AnalyzeRequest request)
-    {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("X-Accel-Buffering", "no");
 
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var isAuthenticated = userIdClaim is not null;
+        var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
         try
         {
-            if (!isAuthenticated)
+            var stream = isAuthenticated
+                ? analysisService.StreamAuthenticatedAsync(userId!.Value, request, HttpContext.RequestAborted)
+                : analysisService.StreamGuestAsync(pdfBytes!, request.JobText, HttpContext.RequestAborted);
+
+            await foreach (var item in stream)
             {
-                if (request.Resume is null)
-                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
-
-                var validation = await fileValidator.ValidatePdfAsync(request.Resume);
-                if (!validation.IsValid)
-                    return BadRequest(new { error = validation.ErrorMessage });
-
-                var result = await analysisService.AnalyzeGuestMethodAsync(
-                    validation.FileBytes!, request.JobText, AnalysisMethod.Keyword);
-
-                return Ok(result);
+                var json = JsonSerializer.Serialize(item, jsonOptions);
+                await Response.WriteAsync($"data: {json}\n\n");
+                await Response.Body.FlushAsync();
             }
 
-            var userId = Guid.Parse(userIdClaim!);
-
-            if (request.ResumeId.HasValue && request.Resume is not null)
-                return BadRequest(new
-                {
-                    error = "Supply either a Resume file or a ResumeId, not both."
-                });
-
-            var authResult = await analysisService.AnalyzeAuthenticatedMethodAsync(
-                userId, request, AnalysisMethod.Keyword);
-            return Ok(authResult);
+            await Response.WriteAsync("data: [DONE]\n\n");
+            await Response.Body.FlushAsync();
         }
-        catch (NotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
-    [HttpPost("rules")]
-    [RequestSizeLimit(5 * 1024 * 1024)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> AnalyzeRules([FromForm] AnalyzeRequest request)
-    {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var isAuthenticated = userIdClaim is not null;
-
-        try
-        {
-            if (!isAuthenticated)
-            {
-                if (request.Resume is null)
-                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
-
-                var validation = await fileValidator.ValidatePdfAsync(request.Resume);
-                if (!validation.IsValid)
-                    return BadRequest(new { error = validation.ErrorMessage });
-
-                var result = await analysisService.AnalyzeGuestMethodAsync(
-                    validation.FileBytes!, request.JobText, AnalysisMethod.RuleBased);
-
-                return Ok(result);
-            }
-
-            var userId = Guid.Parse(userIdClaim!);
-
-            if (request.ResumeId.HasValue && request.Resume is not null)
-                return BadRequest(new
-                {
-                    error = "Supply either a Resume file or a ResumeId, not both."
-                });
-
-            var authResult = await analysisService.AnalyzeAuthenticatedMethodAsync(
-                userId, request, AnalysisMethod.RuleBased);
-            return Ok(authResult);
-        }
-        catch (NotFoundException ex)
-        {
-            return NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        catch (OperationCanceledException) { }
     }
 }
