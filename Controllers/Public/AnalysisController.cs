@@ -13,7 +13,8 @@ namespace glint_backend.Controllers.Public;
 [Route("analyze")]
 public class AnalysisController(
     IAnalysisService analysisService,
-    IFileValidationService fileValidator) : ControllerBase
+    IFileValidationService fileValidator,
+    IKeywordAnalysisService keywordService) : ControllerBase
 {
     // ── Standard (waits for all 3, returns combined result) ──────────────────
 
@@ -133,6 +134,19 @@ public class AnalysisController(
             await Response.Body.FlushAsync();
         }
         catch (OperationCanceledException) { }
+    }
+
+    // New: Keyword debug endpoint
+    [HttpPost("keyword/debug")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> DebugKeyword([FromBody] KeywordDebugRequest request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.RawText))
+            return BadRequest(new { error = "RawText is required in the request body." });
+
+        var debug = await keywordService.DebugExtractAsync(request.RawText);
+        return Ok(debug);
     }
 
     // ── Individual methods ────────────────────────────────────────────────────
