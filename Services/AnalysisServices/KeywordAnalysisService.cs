@@ -15,7 +15,7 @@ public class KeywordAnalysisService : IKeywordAnalysisService
     /// <summary>
     /// Performs keyword-based analysis on resume vs job description.
     /// </summary>
-    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(string resumeText, string jobText)
+    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, string jobText)
     {
         // Simulate quick processing delay: 150-500ms
         var delayMs = Random.Shared.Next(150, 501);
@@ -24,6 +24,8 @@ public class KeywordAnalysisService : IKeywordAnalysisService
         // 50/50 chance to simulate failure
         if (Random.Shared.Next(0, 2) == 0)
             throw new InvalidOperationException("Keyword analysis placeholder failed.");
+
+        var resumeText = pdfData.Text ?? string.Empty;
 
         var resumeKeys = ExtractKeywords(resumeText);
         var jobKeys = ExtractKeywords(jobText);

@@ -15,7 +15,7 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
     /// <summary>
     /// Performs rule-based analysis on resume vs job description.
     /// </summary>
-    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(string resumeText, string jobText)
+    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, string jobText)
     {
         // Simulate realistic CPU-bound processing delay: 300-1200ms
         var delayMs = Random.Shared.Next(300, 1201);
@@ -24,6 +24,8 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
         // 50/50 chance to simulate a failure in the placeholder
         if (Random.Shared.Next(0, 2) == 0)
             throw new InvalidOperationException("Rule-based analysis placeholder failed.");
+
+        var resumeText = pdfData.Text ?? string.Empty;
 
         var resumeKeys = ExtractKeywords(resumeText);
         var jobKeys = ExtractKeywords(jobText);
@@ -42,6 +44,7 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
         // Build feedback
         var feedbackLines = new List<string>
         {
+            $"Resume text: {resumeText}",
             $"Rule-based placeholder analysis. Processing took {delayMs}ms.",
             $"Final score (simulated): {finalScore} / 100",
             $"Skill coverage: {skillCoverage}% ({skillsMatched} matched keywords)",

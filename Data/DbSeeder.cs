@@ -1,10 +1,40 @@
 ﻿using glint_backend.Models;
 using Microsoft.EntityFrameworkCore;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 namespace glint_backend.Data;
 
 public static class DbSeeder
 {
+    private static byte[] CreatePlaceholderPdf(string name, string role)
+    {
+        var builder = new PdfDocumentBuilder();
+        var page = builder.AddPage(PageSize.A4);
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        var bold = builder.AddStandard14Font(Standard14Font.HelveticaBold);
+
+        page.AddText(name, 20, new PdfPoint(50, 780), bold);
+        page.AddText(role, 12, new PdfPoint(50, 755), font);
+        page.AddText("email@example.com | 070 000 00 00 | Stockholm, Sverige", 10, new PdfPoint(50, 735), font);
+
+        page.AddText("Summary", 13, new PdfPoint(50, 705), bold);
+        page.AddText("Experienced developer with a strong background in modern web technologies.", 10, new PdfPoint(50, 688), font);
+
+        page.AddText("Experience", 13, new PdfPoint(50, 660), bold);
+        page.AddText("Software Developer – Example AB  |  2023 -> Present", 10, new PdfPoint(50, 643), font);
+        page.AddText("Built and maintained web applications using React, TypeScript and C#.", 10, new PdfPoint(50, 628), font);
+
+        page.AddText("Education", 13, new PdfPoint(50, 598), bold);
+        page.AddText("BSc Computer Science – Example University  |  2019 -> 2023", 10, new PdfPoint(50, 581), font);
+
+        page.AddText("Skills: React, TypeScript, C#, .NET, PostgreSQL, Docker, Git", 10, new PdfPoint(50, 551), font);
+
+        return builder.Build();
+    }
+
     public static async Task SeedAsync(AppDBContext context)
     {
         await context.Database.MigrateAsync();
@@ -54,12 +84,13 @@ public static class DbSeeder
         var resumeId2 = Guid.NewGuid();
         var resumeId3 = Guid.NewGuid();
 
-        var placeholderPdf = System.Text.Encoding.UTF8.GetBytes("%PDF-1.4 placeholder resume content");
+        var placeholderPdf = CreatePlaceholderPdf("Alice Example", "Senior .NET Developer");
+        var bobPdf = CreatePlaceholderPdf("Bob Example", "Frontend Developer");
 
         await context.Resumes.AddRangeAsync(
             new Resume { Id = resumeId1, UserId = userId1, FileName = "alice_resume_v1.pdf", FileData = placeholderPdf, UploadedAt = DateTime.UtcNow.AddDays(-55) },
             new Resume { Id = resumeId2, UserId = userId1, FileName = "alice_resume_v2.pdf", FileData = placeholderPdf, UploadedAt = DateTime.UtcNow.AddDays(-20) },
-            new Resume { Id = resumeId3, UserId = userId2, FileName = "bob_resume.pdf", FileData = placeholderPdf, UploadedAt = DateTime.UtcNow.AddDays(-28) }
+            new Resume { Id = resumeId3, UserId = userId2, FileName = "bob_resume.pdf", FileData = bobPdf, UploadedAt = DateTime.UtcNow.AddDays(-28) }
         );
 
         // ── Job Advertisements ────────────────────────────────────────────────
