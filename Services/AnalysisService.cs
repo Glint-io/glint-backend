@@ -1,9 +1,10 @@
-﻿using glint_backend.DTOs.Requests;
+﻿using System.Runtime.CompilerServices;
+using System.Threading.Channels;
+using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
 using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using glint_backend.Models;
-using System.Text;
 
 namespace glint_backend.Services;
 
@@ -11,18 +12,14 @@ public class AnalysisService(
     IAnalysisRepository analysisRepo,
     IResumeRepository resumeRepo,
     IJobAdvertisementRepository jobAdRepo,
-    IFileValidationService fileValidator,
-    IAiAnalysisService aiService,
-    IRuleBasedAnalysisService ruleService,
-    IKeywordAnalysisService keywordService) : IAnalysisService
+    IFileValidationService fileValidator) : IAnalysisService
 {
-    //  Guest (stateless) 
+    // ── Standard (await all 3) ────────────────────────────────────────────────
 
     public async Task<AnalyzeResponse> AnalyzeGuestAsync(byte[] pdfBytes, string jobText)
     {
         var results = await RunAllMethodsAsync(Guid.Empty, pdfBytes, jobText);
 
-        // Nothing is persisted - build a transient response
         return new AnalyzeResponse
         {
             AnalysisId = Guid.Empty,
@@ -33,77 +30,17 @@ public class AnalysisService(
         };
     }
 
-    //  Authenticated 
-
     public async Task<AnalyzeResponse> AnalyzeAuthenticatedAsync(Guid userId, AnalyzeRequest request)
     {
-        byte[] pdfBytes;
+        var (pdfBytes, resumeId) = await ResolveResumeAsync(userId, request);
+        var (analysis, _) = await CreateAnalysisAsync(userId, resumeId, request);
 
-        if (request.ResumeId.HasValue)
-        {
-            // Use an existing saved resume
-            var saved = await resumeRepo.GetByIdAsync(request.ResumeId.Value)
-                ?? throw new NotFoundException("Saved resume not found.");
+        var results = await RunAllMethodsAsync(analysis.Id, pdfBytes, request.JobText);
 
-            if (saved.UserId != userId)
-                throw new NotFoundException("Saved resume not found."); // intentionally opaque
+        foreach (var r in results)
+            await analysisRepo.AddResultAsync(r);
 
-            pdfBytes = saved.FileData;
-        }
-        else
-        {
-            // Validate and read the uploaded PDF
-            var validation = await fileValidator.ValidatePdfAsync(request.Resume!);
-            if (!validation.IsValid)
-                throw new InvalidOperationException(validation.ErrorMessage);
-
-            pdfBytes = validation.FileBytes!;
-        }
-
-        // Use provided ResumeId if available; otherwise leave ResumeId null.
-        // Temporary file uploads for analysis are not persisted to the database — only saved resumes via the profile page are stored.
-        Guid? resumeId = request.ResumeId;
-
-        // create a new jobAd for an analysis and link it to the user
-        var jobAd = new JobAdvertisement
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            RawText = request.JobText,
-            CreatedAt = DateTime.UtcNow
-        };
-        await jobAdRepo.AddAsync(jobAd);
-
-        var analysis = new Analysis
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            ResumeId = resumeId,
-            JobAdvertisementId = jobAd.Id,
-            Label = request.Label,
-            CreatedAt = DateTime.UtcNow,
-            Status = AnalysisStatus.InProgress
-        };
-        await analysisRepo.AddAnalysisAsync(analysis);
-
-        // run the methods concurrently
-        List<AnalysisResult> results;
-        try
-        {
-            results = await RunAllMethodsAsync(analysis.Id, pdfBytes, request.JobText);
-
-            foreach (var r in results)
-                await analysisRepo.AddResultAsync(r);
-
-            analysis.Status = AnalysisStatus.Completed;
-        }
-        catch
-        {
-            analysis.Status = AnalysisStatus.Pending;
-            await analysisRepo.UpdateAnalysisAsync(analysis);
-            throw;
-        }
-
+        analysis.Status = AnalysisStatus.Completed;
         await analysisRepo.UpdateAnalysisAsync(analysis);
 
         return new AnalyzeResponse
@@ -116,89 +53,79 @@ public class AnalysisService(
         };
     }
 
-    // Helpers for all methods
+    // ── SSE streaming ─────────────────────────────────────────────────────────
 
-    private async Task<List<AnalysisResult>> RunAllMethodsAsync(
-        Guid analysisId, byte[] pdfBytes, string jobText)
+    public async IAsyncEnumerable<AnalysisStreamEvent> StreamGuestAsync(
+        byte[] pdfBytes, string jobText,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var methods = new[]
+        var channel = Channel.CreateUnbounded<AnalysisStreamEvent>();
+        bool isFirst = true;
+
+        var tasks = Enum.GetValues<AnalysisMethod>().Select(async method =>
         {
-            AnalysisMethod.AI,
-            AnalysisMethod.RuleBased,
-            AnalysisMethod.Keyword
-        };
+            var result = await RunMethodSafeAsync(Guid.Empty, method, pdfBytes, jobText);
+            var evt = new AnalysisStreamEvent
+            {
+                AnalysisId = isFirst ? Guid.Empty : null,
+                Result = MapResult(result),
+                EventType = "result"
+            };
+            isFirst = false;
+            await channel.Writer.WriteAsync(evt, ct);
+        });
 
-        var tasks = methods.Select(m => RunMethodAsync(analysisId, m, pdfBytes, jobText));
+        _ = Task.WhenAll(tasks).ContinueWith(_ => channel.Writer.Complete(), CancellationToken.None);
 
-        var results = await Task.WhenAll(tasks);
-        return results.ToList();
+        await foreach (var evt in channel.Reader.ReadAllAsync(ct))
+            yield return evt;
     }
 
-    private async Task<AnalysisResult> RunMethodAsync(
-        Guid analysisId, AnalysisMethod method, byte[] pdfBytes, string jobText)
+    public async IAsyncEnumerable<AnalysisStreamEvent> StreamAuthenticatedAsync(
+        Guid userId, AnalyzeRequest request,
+        [EnumeratorCancellation] CancellationToken ct = default)
     {
-        // Extract resume text from PDF bytes. Placeholder extraction.
-        var resumeText = ExtractTextFromPdfBytes(pdfBytes);
+        var (pdfBytes, resumeId) = await ResolveResumeAsync(userId, request);
+        var (analysis, _) = await CreateAnalysisAsync(userId, resumeId, request);
 
-        (decimal Score, string Feedback) analysisResult = method switch
-        {
-            AnalysisMethod.AI => await aiService.AnalyzeAsync(resumeText, jobText),
-            AnalysisMethod.RuleBased => await ruleService.AnalyzeAsync(resumeText, jobText),
-            AnalysisMethod.Keyword => await keywordService.AnalyzeAsync(resumeText, jobText),
-            _ => throw new ArgumentOutOfRangeException(nameof(method))
-        };
+        var channel = Channel.CreateUnbounded<AnalysisStreamEvent>();
+        bool isFirst = true;
 
-        return new AnalysisResult
+        var tasks = Enum.GetValues<AnalysisMethod>().Select(async method =>
         {
-            Id = Guid.NewGuid(),
-            AnalysisId = analysisId,
-            Method = method,
-            Score = analysisResult.Score,
-            Feedback = analysisResult.Feedback,
-            CompletedAt = DateTime.UtcNow
-        };
+            var result = await RunMethodSafeAsync(analysis.Id, method, pdfBytes, request.JobText);
+            await analysisRepo.AddResultAsync(result);
+
+            var evt = new AnalysisStreamEvent
+            {
+                AnalysisId = isFirst ? analysis.Id : null,
+                Label = isFirst ? analysis.Label : null,
+                Result = MapResult(result),
+                EventType = "result"
+            };
+            isFirst = false;
+
+            await channel.Writer.WriteAsync(evt, ct);
+        });
+
+        _ = Task.WhenAll(tasks).ContinueWith(async _ =>
+        {
+            analysis.Status = AnalysisStatus.Completed;
+            await analysisRepo.UpdateAnalysisAsync(analysis);
+            channel.Writer.Complete();
+        }, CancellationToken.None);
+
+        await foreach (var evt in channel.Reader.ReadAllAsync(ct))
+            yield return evt;
     }
 
-    private static List<AnalysisResultResponse> MapResults(List<AnalysisResult> results) =>
-        results.Select(r => new AnalysisResultResponse
-        {
-            Id = r.Id,
-            Method = r.Method.ToString(),
-            Score = r.Score,
-            Feedback = r.Feedback,
-            CompletedAt = r.CompletedAt
-        }).ToList();
+    // ── Shared helpers ────────────────────────────────────────────────────────
 
-    private static string ExtractTextFromPdfBytes(byte[] pdfBytes)
+    // Resolves PDF bytes from either a saved resume or an uploaded file.
+    // Uploaded files are NOT persisted — only saved resumes are.
+    private async Task<(byte[] pdfBytes, Guid? resumeId)> ResolveResumeAsync(
+        Guid userId, AnalyzeRequest request)
     {
-        // Placeholder: we don't have a PDF parser here. Return a simple marker including length.
-        if (pdfBytes is null || pdfBytes.Length == 0)
-            return string.Empty;
-
-        return $"[PDF bytes length: {pdfBytes.Length}]";
-    }
-
-    // Individual method analysis — for dynamic results
-
-    public async Task<AnalysisResultResponse> AnalyzeGuestMethodAsync(
-        byte[] pdfBytes, string jobText, AnalysisMethod method)
-    {
-        var result = await RunMethodAsync(Guid.Empty, method, pdfBytes, jobText);
-        return new AnalysisResultResponse
-        {
-            Id = result.Id,
-            Method = result.Method.ToString(),
-            Score = result.Score,
-            Feedback = result.Feedback,
-            CompletedAt = result.CompletedAt
-        };
-    }
-
-    public async Task<AnalysisResultResponse> AnalyzeAuthenticatedMethodAsync(
-        Guid userId, AnalyzeRequest request, AnalysisMethod method)
-    {
-        byte[] pdfBytes;
-
         if (request.ResumeId.HasValue)
         {
             var saved = await resumeRepo.GetByIdAsync(request.ResumeId.Value)
@@ -207,19 +134,20 @@ public class AnalysisService(
             if (saved.UserId != userId)
                 throw new NotFoundException("Saved resume not found.");
 
-            pdfBytes = saved.FileData;
-        }
-        else
-        {
-            var validation = await fileValidator.ValidatePdfAsync(request.Resume!);
-            if (!validation.IsValid)
-                throw new InvalidOperationException(validation.ErrorMessage);
-
-            pdfBytes = validation.FileBytes!;
+            return (saved.FileData, saved.Id);
         }
 
-        Guid? resumeId = request.ResumeId;
+        var validation = await fileValidator.ValidatePdfAsync(request.Resume!);
+        if (!validation.IsValid)
+            throw new InvalidOperationException(validation.ErrorMessage);
 
+        // File is used for analysis only — not saved to the database
+        return (validation.FileBytes!, null);
+    }
+
+    private async Task<(Analysis analysis, JobAdvertisement jobAd)> CreateAnalysisAsync(
+        Guid userId, Guid? resumeId, AnalyzeRequest request)
+    {
         var jobAd = new JobAdvertisement
         {
             Id = Guid.NewGuid(),
@@ -241,26 +169,118 @@ public class AnalysisService(
         };
         await analysisRepo.AddAnalysisAsync(analysis);
 
-        AnalysisResult result;
+        return (analysis, jobAd);
+    }
+
+    private static async Task<List<AnalysisResult>> RunAllMethodsAsync(
+        Guid analysisId, byte[] pdfBytes, string jobText)
+    {
+        var tasks = Enum.GetValues<AnalysisMethod>()
+            .Select(m => RunMethodSafeAsync(analysisId, m, pdfBytes, jobText));
+
+        return [.. await Task.WhenAll(tasks)];
+    }
+
+    // Catches any method failure and returns a 0-score result instead of throwing.
+    private static async Task<AnalysisResult> RunMethodSafeAsync(
+        Guid analysisId, AnalysisMethod method, byte[] pdfBytes, string jobText)
+    {
         try
         {
-            result = await RunMethodAsync(analysis.Id, method, pdfBytes, request.JobText);
-            await analysisRepo.AddResultAsync(result);
+            return await RunMethodAsync(analysisId, method, pdfBytes, jobText);
         }
-        catch
+        catch (Exception ex)
         {
-            analysis.Status = AnalysisStatus.Pending;
-            await analysisRepo.UpdateAnalysisAsync(analysis);
-            throw;
+            return new AnalysisResult
+            {
+                Id = Guid.NewGuid(),
+                AnalysisId = analysisId,
+                Method = method,
+                Score = 0,
+                Feedback = $"{method} analysis failed: {ex.Message}",
+                CompletedAt = DateTime.UtcNow
+            };
         }
+    }
 
-        return new AnalysisResultResponse
+    private static Task<AnalysisResult> RunMethodAsync(
+        Guid analysisId, AnalysisMethod method, byte[] pdfBytes, string jobText)
+        => method switch
         {
-            Id = result.Id,
-            Method = result.Method.ToString(),
-            Score = result.Score,
-            Feedback = result.Feedback,
-            CompletedAt = result.CompletedAt
+            AnalysisMethod.AI => RunAiAsync(analysisId, pdfBytes, jobText),
+            AnalysisMethod.RuleBased => RunRuleBasedAsync(analysisId, pdfBytes, jobText),
+            AnalysisMethod.Keyword => RunKeywordAsync(analysisId, pdfBytes, jobText),
+            _ => throw new ArgumentOutOfRangeException(nameof(method))
+        };
+
+    private static AnalysisResultResponse MapResult(AnalysisResult r) => new()
+    {
+        Id = r.Id,
+        Method = r.Method.ToString(),
+        Score = r.Score,
+        Feedback = r.Feedback,
+        CompletedAt = r.CompletedAt
+    };
+
+    private static List<AnalysisResultResponse> MapResults(List<AnalysisResult> results) =>
+        results.Select(MapResult).ToList();
+
+    // ── Method stubs (replace with real implementations) ─────────────────────
+
+    private static async Task<AnalysisResult> RunAiAsync(
+        Guid analysisId, byte[] pdfBytes, string jobText)
+    {
+        await Task.Delay(Random.Shared.Next(1000, 4000));
+
+        if (Random.Shared.NextDouble() < 0.5)
+            throw new Exception("Simulated AI failure.");
+
+        return new AnalysisResult
+        {
+            Id = Guid.NewGuid(),
+            AnalysisId = analysisId,
+            Method = AnalysisMethod.AI,
+            Score = Math.Round((decimal)(Random.Shared.NextDouble() * 100), 2),
+            Feedback = "AI score not yet implemented.",
+            CompletedAt = DateTime.UtcNow
+        };
+    }
+
+    private static async Task<AnalysisResult> RunRuleBasedAsync(
+        Guid analysisId, byte[] pdfBytes, string jobText)
+    {
+        await Task.Delay(Random.Shared.Next(1000, 4000));
+
+        if (Random.Shared.NextDouble() < 0.5)
+            throw new Exception("Simulated RuleBased failure.");
+
+        return new AnalysisResult
+        {
+            Id = Guid.NewGuid(),
+            AnalysisId = analysisId,
+            Method = AnalysisMethod.RuleBased,
+            Score = Math.Round((decimal)(Random.Shared.NextDouble() * 100), 2),
+            Feedback = "Rule-based analysis not yet implemented.",
+            CompletedAt = DateTime.UtcNow
+        };
+    }
+
+    private static async Task<AnalysisResult> RunKeywordAsync(
+        Guid analysisId, byte[] pdfBytes, string jobText)
+    {
+        await Task.Delay(Random.Shared.Next(1000, 4000));
+
+        if (Random.Shared.NextDouble() < 0.5)
+            throw new Exception("Simulated Keyword failure.");
+
+        return new AnalysisResult
+        {
+            Id = Guid.NewGuid(),
+            AnalysisId = analysisId,
+            Method = AnalysisMethod.Keyword,
+            Score = Math.Round((decimal)(Random.Shared.NextDouble() * 100), 2),
+            Feedback = "Keyword analysis not yet implemented.",
+            CompletedAt = DateTime.UtcNow
         };
     }
 }
