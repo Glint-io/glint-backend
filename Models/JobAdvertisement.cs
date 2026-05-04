@@ -11,6 +11,9 @@ public class JobAdvertisement
     [Required]
     public Guid UserId { get; set; }
 
+    [MaxLength(200)]
+    public string? Title { get; set; }
+
     [Required]
     public string RawText { get; set; } = null!;
 

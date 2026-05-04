@@ -37,7 +37,7 @@ namespace glint_backend.Migrations
                     b.Property<Guid>("JobAdvertisementId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Label")
+                    b.Property<string>("JobTitle")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 

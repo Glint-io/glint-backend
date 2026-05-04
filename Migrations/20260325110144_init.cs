@@ -119,7 +119,7 @@ namespace glint_backend.Migrations
                     UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ResumeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     JobAdvertisementId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Label = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    JobTitle = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false)
                 },

@@ -114,38 +114,38 @@ public static class DbSeeder
         }));
 
         // ── Analyses + Results ────────────────────────────────────────────────
-        // (daysAgo, resumeId, jobAdIndex, label, aiScore, ruleScore, keywordScore)
+        // (daysAgo, resumeId, jobAdIndex, JobTitle, aiScore, ruleScore, keywordScore)
         var aliceRuns = new[]
         {
-            (DaysAgo: 50, ResumeId: resumeId1, JobAdIndex: 0, Label: "Senior .NET – first attempt",    AiScore: 55m, RuleScore: 50m, KwScore: 30m),
-            (DaysAgo: 44, ResumeId: resumeId1, JobAdIndex: 0, Label: "Senior .NET – second attempt",   AiScore: 62m, RuleScore: 58m, KwScore: 38m),
-            (DaysAgo: 38, ResumeId: resumeId1, JobAdIndex: 1, Label: "Fintech backend role",           AiScore: 59m, RuleScore: 54m, KwScore: 33m),
-            (DaysAgo: 31, ResumeId: resumeId1, JobAdIndex: 2, Label: "Lead Engineer application",      AiScore: 66m, RuleScore: 61m, KwScore: 42m),
-            (DaysAgo: 25, ResumeId: resumeId2, JobAdIndex: 2, Label: "Lead Engineer – updated CV",     AiScore: 74m, RuleScore: 70m, KwScore: 55m),
-            (DaysAgo: 18, ResumeId: resumeId2, JobAdIndex: 3, Label: "Full stack position",            AiScore: 78m, RuleScore: 72m, KwScore: 58m),
-            (DaysAgo: 12, ResumeId: resumeId2, JobAdIndex: 0, Label: "Senior .NET – third attempt",    AiScore: 80m, RuleScore: 76m, KwScore: 62m),
-            (DaysAgo:  7, ResumeId: resumeId2, JobAdIndex: 4, Label: "Platform Engineer stretch role", AiScore: 69m, RuleScore: 65m, KwScore: 48m),
-            (DaysAgo:  3, ResumeId: resumeId2, JobAdIndex: 3, Label: "Full stack – final polish",      AiScore: 83m, RuleScore: 79m, KwScore: 67m),
-            (DaysAgo:  2, ResumeId: resumeId2, JobAdIndex: 0, Label: "Senior .NET – best version",     AiScore: 82.5m, RuleScore: 78m, KwScore: 40m),
-            (DaysAgo:  0, ResumeId: resumeId2, JobAdIndex: 0, Label: "Senior .NET – best version",     AiScore: 100m, RuleScore: 100m, KwScore: 100m),
+            (DaysAgo: 50, ResumeId: resumeId1, JobAdIndex: 0, JobTitle: "Senior .NET – first attempt",    AiScore: 55m, RuleScore: 50m, KwScore: 30m),
+            (DaysAgo: 44, ResumeId: resumeId1, JobAdIndex: 0, JobTitle: "Senior .NET – second attempt",   AiScore: 62m, RuleScore: 58m, KwScore: 38m),
+            (DaysAgo: 38, ResumeId: resumeId1, JobAdIndex: 1, JobTitle: "Fintech backend role",           AiScore: 59m, RuleScore: 54m, KwScore: 33m),
+            (DaysAgo: 31, ResumeId: resumeId1, JobAdIndex: 2, JobTitle: "Lead Engineer application",      AiScore: 66m, RuleScore: 61m, KwScore: 42m),
+            (DaysAgo: 25, ResumeId: resumeId2, JobAdIndex: 2, JobTitle: "Lead Engineer – updated CV",     AiScore: 74m, RuleScore: 70m, KwScore: 55m),
+            (DaysAgo: 18, ResumeId: resumeId2, JobAdIndex: 3, JobTitle: "Full stack position",            AiScore: 78m, RuleScore: 72m, KwScore: 58m),
+            (DaysAgo: 12, ResumeId: resumeId2, JobAdIndex: 0, JobTitle: "Senior .NET – third attempt",    AiScore: 80m, RuleScore: 76m, KwScore: 62m),
+            (DaysAgo:  7, ResumeId: resumeId2, JobAdIndex: 4, JobTitle: "Platform Engineer stretch role", AiScore: 69m, RuleScore: 65m, KwScore: 48m),
+            (DaysAgo:  3, ResumeId: resumeId2, JobAdIndex: 3, JobTitle: "Full stack – final polish",      AiScore: 83m, RuleScore: 79m, KwScore: 67m),
+            (DaysAgo:  2, ResumeId: resumeId2, JobAdIndex: 0, JobTitle: "Senior .NET – best version",     AiScore: 82.5m, RuleScore: 78m, KwScore: 40m),
+            (DaysAgo:  0, ResumeId: resumeId2, JobAdIndex: 0, JobTitle: "Senior .NET – best version",     AiScore: 100m, RuleScore: 100m, KwScore: 100m),
         };
 
         var bobRuns = new[]
         {
-            (DaysAgo: 28, ResumeId: resumeId3, JobAdIndex: 5, Label: "Junior Frontend – first try",    AiScore: 48m, RuleScore: 44m, KwScore: 35m),
-            (DaysAgo: 21, ResumeId: resumeId3, JobAdIndex: 5, Label: "Junior Frontend – revised",      AiScore: 57m, RuleScore: 52m, KwScore: 41m),
-            (DaysAgo: 14, ResumeId: resumeId3, JobAdIndex: 6, Label: "Next.js role application",       AiScore: 63m, RuleScore: 59m, KwScore: 46m),
-            (DaysAgo:  7, ResumeId: resumeId3, JobAdIndex: 6, Label: "Next.js – updated keywords",     AiScore: 68m, RuleScore: 63m, KwScore: 52m),
+            (DaysAgo: 28, ResumeId: resumeId3, JobAdIndex: 5, JobTitle: "Junior Frontend – first try",    AiScore: 48m, RuleScore: 44m, KwScore: 35m),
+            (DaysAgo: 21, ResumeId: resumeId3, JobAdIndex: 5, JobTitle: "Junior Frontend – revised",      AiScore: 57m, RuleScore: 52m, KwScore: 41m),
+            (DaysAgo: 14, ResumeId: resumeId3, JobAdIndex: 6, JobTitle: "Next.js role application",       AiScore: 63m, RuleScore: 59m, KwScore: 46m),
+            (DaysAgo:  7, ResumeId: resumeId3, JobAdIndex: 6, JobTitle: "Next.js – updated keywords",     AiScore: 68m, RuleScore: 63m, KwScore: 52m),
         };
 
         foreach (var r in aliceRuns)
         {
-            await AddAnalysisWithResults(context, userId1, r.ResumeId, jobAdIds[r.JobAdIndex].Id, r.Label, r.DaysAgo, r.AiScore, r.RuleScore, r.KwScore);
+            await AddAnalysisWithResults(context, userId1, r.ResumeId, jobAdIds[r.JobAdIndex].Id, r.JobTitle, r.DaysAgo, r.AiScore, r.RuleScore, r.KwScore);
         }
 
         foreach (var r in bobRuns)
         {
-            await AddAnalysisWithResults(context, userId2, r.ResumeId, jobAdIds[r.JobAdIndex].Id, r.Label, r.DaysAgo, r.AiScore, r.RuleScore, r.KwScore);
+            await AddAnalysisWithResults(context, userId2, r.ResumeId, jobAdIds[r.JobAdIndex].Id, r.JobTitle, r.DaysAgo, r.AiScore, r.RuleScore, r.KwScore);
         }
 
         await context.SaveChangesAsync();
@@ -156,7 +156,7 @@ public static class DbSeeder
         Guid userId,
         Guid resumeId,
         Guid jobAdId,
-        string label,
+        string jobTitle,
         int daysAgo,
         decimal aiScore,
         decimal ruleScore,
@@ -172,7 +172,7 @@ public static class DbSeeder
             UserId = userId,
             ResumeId = resumeId,
             JobAdvertisementId = jobAdId,
-            Label = label,
+            JobTitle = jobTitle,
             CreatedAt = createdAt,
             Status = AnalysisStatus.Completed
         });

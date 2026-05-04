@@ -15,7 +15,7 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
     /// <summary>
     /// Performs rule-based analysis on resume vs job description.
     /// </summary>
-    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, string jobText)
+    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, JobAdvertisement jobAdvertisement)
     {
         // Simulate realistic CPU-bound processing delay: 300-1200ms
         var delayMs = Random.Shared.Next(300, 1201);
@@ -28,7 +28,7 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
         var resumeText = pdfData.Text ?? string.Empty;
 
         var resumeKeys = ExtractKeywords(resumeText);
-        var jobKeys = ExtractKeywords(jobText);
+        var jobKeys = ExtractKeywords(jobAdvertisement.RawText);
 
         // Simple mocked heuristics
         var skillsMatched = resumeKeys.Intersect(jobKeys).Count();
