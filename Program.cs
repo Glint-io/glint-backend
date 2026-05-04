@@ -127,6 +127,7 @@ namespace glint_backend
             builder.Services.AddScoped<IResumeService, ResumeService>();
             builder.Services.AddScoped<IAnalysisService, AnalysisService>();
             builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
 
             // ── Build App ─────────────────────────────────────────────────────────
             var app = builder.Build();

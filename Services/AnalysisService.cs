@@ -14,7 +14,8 @@ public class AnalysisService(
     IFileValidationService fileValidator,
     IAiAnalysisService aiService,
     IRuleBasedAnalysisService ruleService,
-    IKeywordAnalysisService keywordService) : IAnalysisService
+    IKeywordAnalysisService keywordService,
+    IPdfExtractionService pdfExtractor) : IAnalysisService
 {
     //  Guest (stateless) 
 
@@ -138,13 +139,16 @@ public class AnalysisService(
         Guid analysisId, AnalysisMethod method, byte[] pdfBytes, string jobText)
     {
         // Extract resume text from PDF bytes. Placeholder extraction.
-        var resumeText = ExtractTextFromPdfBytes(pdfBytes);
+        // Use the PDF extractor service to obtain text and metadata.
+        var doc = await pdfExtractor.ExtractAsync(pdfBytes);
+
+        // Optionally you can include metadata in feedback or logs. For now we only use text for analysis.
 
         (decimal Score, string Feedback) analysisResult = method switch
         {
-            AnalysisMethod.AI => await aiService.AnalyzeAsync(resumeText, jobText),
-            AnalysisMethod.RuleBased => await ruleService.AnalyzeAsync(resumeText, jobText),
-            AnalysisMethod.Keyword => await keywordService.AnalyzeAsync(resumeText, jobText),
+            AnalysisMethod.AI => await aiService.AnalyzeAsync(doc, jobText),
+            AnalysisMethod.RuleBased => await ruleService.AnalyzeAsync(doc, jobText),
+            AnalysisMethod.Keyword => await keywordService.AnalyzeAsync(doc, jobText),
             _ => throw new ArgumentOutOfRangeException(nameof(method))
         };
 
