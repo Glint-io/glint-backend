@@ -14,7 +14,7 @@ public class AiAnalysisService : IAiAnalysisService
     /// <summary>
     /// Performs AI-based analysis on resume vs job description.
     /// </summary>
-    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(string resumeText, string jobText)
+    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, string jobText)
     {
         // Simulate realistic network/processing delay for AI service: 2-6 seconds
         var delayMs = Random.Shared.Next(2000, 6001);
@@ -25,6 +25,8 @@ public class AiAnalysisService : IAiAnalysisService
             throw new InvalidOperationException("AI analysis placeholder failed.");
 
         // Very simple keyword overlap as a signal
+        var resumeText = pdfData.Text ?? string.Empty;
+
         var resumeKeys = ExtractKeywords(resumeText);
         var jobKeys = ExtractKeywords(jobText);
         var matched = resumeKeys.Intersect(jobKeys).ToList();
