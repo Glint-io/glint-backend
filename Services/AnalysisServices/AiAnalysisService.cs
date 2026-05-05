@@ -1,76 +1,158 @@
-using System;
-using System.Linq;
-using glint_backend.Models;
+﻿using System.Text.RegularExpressions;
+using Google.GenAI;
 using glint_backend.Interfaces;
+using glint_backend.Models;
 
 namespace glint_backend.Services.AnalysisServices;
 
-/// <summary>
-/// AI-based resume analysis using semantic understanding.
-/// Placeholder implementation: simulated delay, 50% failure, and richer feedback.
-/// </summary>
 public class AiAnalysisService : IAiAnalysisService
 {
-    /// <summary>
-    /// Performs AI-based analysis on resume vs job description.
-    /// </summary>
-    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(PdfDocumentData pdfData, JobAdvertisement jobAdvertisement)
+    private readonly Client _client;
+    private const string ModelName = "gemini-3.1-flash-lite-preview";
+    private const int MaxRetries = 1;
+
+    private static readonly Regex ScoreRegex = new(
+        @"match\s*score\s*[:\-]?\s*\*{0,2}\s*([0-9]{1,3}(?:\.[0-9]{1,2})?)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // Fallback: any standalone number on a "score" line
+    private static readonly Regex FallbackScoreRegex = new(
+        @"score[^\d]*([0-9]{1,3}(?:\.[0-9]{1,2})?)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public AiAnalysisService(IConfiguration configuration)
     {
+        var apiKey = configuration["Gemini:ApiKey"]
+            ?? throw new InvalidOperationException("Gemini:ApiKey is not configured.");
 
-        // Simulate realistic network/processing delay for AI service: 2-6 seconds
-        var delayMs = Random.Shared.Next(2000, 6001);
-        await Task.Delay(delayMs);
-
-        // 50/50 chance to simulate a failure in the placeholder
-        if (Random.Shared.Next(0, 2) == 0)
-            throw new InvalidOperationException("AI analysis placeholder failed.");
-
-        // Very simple keyword overlap as a signal
-        var resumeText = pdfData.Text ?? string.Empty;
-
-        var resumeKeys = ExtractKeywords(resumeText);
-        var jobKeys = ExtractKeywords(jobAdvertisement.RawText);
-        var matched = resumeKeys.Intersect(jobKeys).ToList();
-        var totalJobKeys = Math.Max(1, jobKeys.Count);
-        var keywordScore = (decimal)matched.Count / totalJobKeys * 100m;
-
-        // Simulated semantic confidence component (random but biased higher)
-        var semanticComponent = (decimal)Random.Shared.Next(60, 96);
-
-        // Weighted final score: 60% semantic, 40% keyword overlap
-        var finalScore = Math.Round((semanticComponent * 0.6m) + (keywordScore * 0.4m), 2);
-
-        // Build feedback with some details
-        var feedbackLines = new System.Collections.Generic.List<string>();
-        feedbackLines.Add($"AI placeholder analysis (simulated). Processing took {delayMs}ms.");
-        feedbackLines.Add($"Overall (simulated) fit score: {finalScore} / 100");
-
-        if (matched.Any())
-            feedbackLines.Add($"Top matched keywords: {string.Join(", ", matched.Take(10))}");
-        else
-            feedbackLines.Add("No clear keyword matches found between resume and job description.");
-
-        // Provide actionable suggestions (placeholder)
-        feedbackLines.Add("Suggestions: emphasize relevant skills in your summary, add specific keywords from the job description, and quantify achievements where possible.");
-
-        var feedback = string.Join("\n", feedbackLines);
-        return (finalScore, feedback);
+        _client = new Client(apiKey: apiKey);
     }
 
-    private static System.Collections.Generic.List<string> ExtractKeywords(string text)
+    public async Task<(decimal Score, string Feedback)> AnalyzeAsync(
+        PdfDocumentData pdfData, JobAdvertisement jobAdvertisement)
     {
-        if (string.IsNullOrWhiteSpace(text))
-            return new System.Collections.Generic.List<string>();
-
-        var separators = new[] { ' ', '\n', '\r', '\t', ',', '.', ';', ':', '/', '\\', '(', ')', '[', ']', '"', '\'', '-', '_'};
-        var tokens = text
-            .ToLowerInvariant()
-            .Split(separators, StringSplitOptions.RemoveEmptyEntries)
-            .Select(t => t.Trim())
-            .Where(t => t.Length > 2)
-            .Distinct()
-            .ToList();
-
-        return tokens;
+        var prompt = BuildPrompt(pdfData.Text ?? string.Empty, jobAdvertisement.RawText);
+        return await ExecuteWithRetryAsync(prompt, retryCount: 0);
     }
+
+
+    private async Task<(decimal Score, string Feedback)> ExecuteWithRetryAsync(
+        string prompt, int retryCount)
+    {
+        try
+        {
+            var response = await _client.Models.GenerateContentAsync(
+                model: ModelName,
+                contents: prompt
+            );
+
+            var rawText = response.Text ?? string.Empty;
+            var score = ExtractScore(rawText);
+            var feedback = StripScoreLine(rawText).Trim();
+
+            return (score, feedback);
+        }
+        catch (Exception ex) when (Is429(ex) && IsRetryable(ex) && retryCount < MaxRetries)
+        {
+            // Transient rate limit — wait and retry once
+            await Task.Delay(3000);
+            return await ExecuteWithRetryAsync(prompt, retryCount + 1);
+        }
+        catch (Exception ex) when (Is429(ex))
+        {
+            // Quota exhausted (limit: 0) or retry limit reached — fail gracefully
+            return (0m, BuildQuotaMessage(ex));
+        }
+        catch (Exception ex)
+        {
+            return (0m, $"AI analysis currently unavailable: {ex.Message}");
+        }
+    }
+
+
+    private static bool Is429(Exception ex) =>
+        ex.Message.Contains("429") || ex.Message.Contains("TooManyRequests");
+
+    private static bool IsRetryable(Exception ex) =>
+        !ex.Message.Contains("limit: 0");
+
+    private static string BuildQuotaMessage(Exception ex)
+    {
+        if (ex.Message.Contains("limit: 0"))
+            return "AI analysis is unavailable: the Gemini free-tier quota for this " +
+                   "project is 0. Please enable billing at https://ai.dev/rate-limit " +
+                   "or wait for the daily quota to reset.";
+
+        return "AI analysis is temporarily unavailable due to rate limiting. " +
+               "The rule-based and keyword scores are still valid.";
+    }
+
+
+    private static string BuildPrompt(string resumeText, string jobText) => $"""
+        You are an expert Technical Recruiter and Career Coach with 20 years of experience in talent acquisition.
+
+        Conduct a deep-dive gap analysis between the resume and job advertisement provided below.
+
+        ## Analysis Requirements
+
+        1. **Keyword Match**: Identify essential hard skills, software, and certifications mentioned in the job ad that are missing or underemphasized in the resume.
+        2. **Experience Alignment**: Evaluate if the seniority level and specific responsibilities in the resume align with the job's core KPIs.
+        3. **Soft Skill Evidence**: Check if the resume demonstrates (rather than just lists) the soft skills required (e.g., leadership, communication).
+        4. **Missing "Must-Haves"**: Explicitly list any deal-breakers the resume is currently missing.
+
+        ## Output Format
+
+        Respond using EXACTLY this structure — do not deviate:
+
+        Match Score: [number between 0 and 100, up to two decimal places]
+
+        - [gap or missing element 1]
+        - [gap or missing element 2]
+        - ...
+
+        **Actionable Fixes**
+        1. [specific rewrite suggestion]
+        2. [specific rewrite suggestion]
+        3. [specific rewrite suggestion]
+        (add up to 5 if needed)
+
+        IMPORTANT:
+        - The "Match Score:" line must appear exactly once, on its own line, at the very top.
+        - Do NOT embed the score anywhere else in the response.
+        - Do NOT add a "Gaps" heading or any other section headings except "Actionable Fixes".
+        - Do NOT add preamble or closing remarks outside the defined sections.
+
+        ---
+
+        ## Job Advertisement
+        {jobText}
+
+        ## Resume
+        {resumeText}
+        """;
+
+    private static decimal ExtractScore(string text)
+    {
+        var match = ScoreRegex.Match(text);
+
+        if (!match.Success)
+            match = FallbackScoreRegex.Match(text);
+
+        if (match.Success && decimal.TryParse(
+                match.Groups[1].Value,
+                System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed))
+        {
+            return Math.Clamp(Math.Round(parsed, 2), 0m, 100m);
+        }
+
+        return 0m;
+    }
+
+    private static string StripScoreLine(string text) =>
+        Regex.Replace(
+            text,
+            @"(?im)^.*match\s*score\s*[:\-]?.*$\r?\n?",
+            string.Empty).Trim();
 }

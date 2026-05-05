@@ -33,6 +33,7 @@ namespace glint_backend
             builder.Services.AddScoped<IOtcRepository, OtcRepository>();
             builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IAiAnalysisService, AiAnalysisService>();
 
             // ── Authentication (JWT) ──────────────────────────────────────────────
             var jwtKey = builder.Configuration["Jwt:Key"]
