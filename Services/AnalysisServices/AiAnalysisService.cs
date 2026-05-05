@@ -95,49 +95,49 @@ public class AiAnalysisService : IAiAnalysisService
 
     // Defines the full instructional context and output schema for the AI model
     private static string BuildPrompt(string resumeText, string jobText) => $"""
-        You are an expert Technical Recruiter and Career Coach with 20 years of experience in talent acquisition.
+    You are an expert Technical Recruiter and Career Coach with 20 years of experience in talent acquisition.
+    Be direct and specific, but frame all feedback constructively — assume the candidate is motivated and capable of making improvements.
 
-        Conduct a deep-dive gap analysis between the resume and job advertisement provided below.
+    Conduct a deep-dive gap analysis between the resume and job advertisement provided below.
 
-        ## Analysis Requirements
+    ## Analysis Requirements
+    1. **Keyword Match**: Identify essential hard skills, software, and certifications mentioned in the job ad that are missing or underemphasized in the resume.
+    2. **Experience Alignment**: Evaluate if the seniority level and specific responsibilities in the resume align with the job's core KPIs.
+    3. **Soft Skill Evidence**: Check if the resume demonstrates (rather than just lists) the soft skills required (e.g., leadership, communication).
+    4. **Missing "Must-Haves"**: Explicitly list any deal-breakers the resume is currently missing.
 
-        1. **Keyword Match**: Identify essential hard skills, software, and certifications mentioned in the job ad that are missing or underemphasized in the resume.
-        2. **Experience Alignment**: Evaluate if the seniority level and specific responsibilities in the resume align with the job's core KPIs.
-        3. **Soft Skill Evidence**: Check if the resume demonstrates (rather than just lists) the soft skills required (e.g., leadership, communication).
-        4. **Missing "Must-Haves"**: Explicitly list any deal-breakers the resume is currently missing.
+    ## Output Format
+    Respond using EXACTLY this structure — do not deviate:
 
-        ## Output Format
+    Match Score: [number between 0 and 100, up to two decimal places]
 
-        Respond using EXACTLY this structure — do not deviate:
+    **Missing Elements**
+    - [gap or missing element 1]
+    - [gap or missing element 2]
+    - ...
 
-        Match Score: [number between 0 and 100, up to two decimal places]
+    **Actionable Fixes**
+    1. [specific rewrite suggestion]
+    2. [specific rewrite suggestion]
+    3. [specific rewrite suggestion]
+    4. [specific rewrite suggestion]
+    5. [specific rewrite suggestion]
+    (add up to 5 if needed)
 
-        - [gap or missing element 1]
-        - [gap or missing element 2]
-        - ...
+    IMPORTANT:
+    - The "Match Score:" line must appear exactly once, on its own line, at the very top.
+    - Do NOT embed the score anywhere else in the response.
+    - The only section headings allowed are "Missing Elements" and "Actionable Fixes".
+    - Do NOT add preamble or closing remarks outside the defined sections.
 
-        **Actionable Fixes**
-        1. [specific rewrite suggestion]
-        2. [specific rewrite suggestion]
-        3. [specific rewrite suggestion]
-        4. [specific rewrite suggestion]
-        5. [specific rewrite suggestion]
-        (add up to 5 if needed)
+    ---
 
-        IMPORTANT:
-        - The "Match Score:" line must appear exactly once, on its own line, at the very top.
-        - Do NOT embed the score anywhere else in the response.
-        - Do NOT add a "Gaps" heading or any other section headings except "Actionable Fixes".
-        - Do NOT add preamble or closing remarks outside the defined sections.
+    ## Job Advertisement
+    {jobText}
 
-        ---
-
-        ## Job Advertisement
-        {jobText}
-
-        ## Resume
-        {resumeText}
-        """;
+    ## Resume
+    {resumeText}
+    """;
 
     // Parses the numeric match score from the top of the AI response text
     private static decimal ExtractScore(string text)
