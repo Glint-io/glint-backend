@@ -190,6 +190,13 @@ public class KeywordAnalysisService : IKeywordAnalysisService
         "connect", "connecting", "connected",
         "integrate", "integrating", "integrated",
 
+        "someone", "anyone", "everyone", "nobody",
+        "example", "examples", "instance", "instances",
+        "assistant", "assistants",
+        "code", "coding", "script",
+        "database", "databases",
+        "task", "tasks",
+
         // ── Common nouns ────────────────────────────────────────────────────
         "team", "teams",
         "role", "roles",
@@ -384,6 +391,241 @@ public class KeywordAnalysisService : IKeywordAnalysisService
         "mainly", "primarily", "especially", "particularly",
         "including", "alongside", "additionally", "furthermore",
         "ideally", "preferably", "typically",
+
+        // ── job-ad qualifier boilerplate (new) ───────────────────────────────
+        "documented",           // "documented experience in X" appears 5–6× in every ad
+        "meritorious",          // Swedish job-ad term for "nice to have"
+        "merit",
+        "merits",
+        "structured",           // "works in a structured way"
+        "structurally",
+        "independently",
+        "independent",
+        "manner",               // "in an independent manner"
+        "sustainable",          // "finds sustainable solutions"
+        "conscious",            // "quality-conscious"
+        "carefully",
+        "prerequisite",
+        "prerequisite",
+        "continuously",
+        "continuously",
+        "complete",
+        "briefly",
+        "explain",
+        "suitable",
+
+        // ── org/geography noise (new) ────────────────────────────────────────
+        "sector",               // "public sector" — relevant phrase but "sector" alone is noise
+        "public",
+        "national",
+        "regional",
+        "region",               // "Stockholm region" — too generic on its own
+        "municipal",
+        "municipality",
+        "hospital",             // alone it's noise; "university hospital" isn't
+        "register",             // "quality registers"
+        "registers",
+        "record",               // "medical record"
+        "records",
+        "component",
+        "components",
+        "object",
+        "objects",
+        "party",
+        "parties",
+        "contractual",
+        "provider",
+        "providers",
+        "supplier",
+        "suppliers",
+        "representative",
+        "representatives",
+        "specialist",           // already in list but double-check
+        "flow",
+        "flows",
+        "interface",            // alone it's generic — "integrations and interfaces"
+        "interfaces",           // the bigram matters more than either word alone
+        "generation",
+        "next",                 // "next generation"
+        "waiting",
+        "transfer",
+        "transferring",
+        "transferable",
+        "attach",               // "attach a CV"
+        "attachment",
+
+        // ── common adjectives missed from original list (new) ────────────────
+        "socially",
+        "social",
+        "complex",
+        "developing",           // "developing environment" — too vague
+        "current",
+        "currently",
+        "general",
+        "ordinary",
+        "ordinary",
+        "special",
+        "specially",
+        "specialized",
+        "important",            // "important role" is noise
+        "closely",
+        "close",
+        "central",
+        "cross",
+        "functional",           // "cross-functional" — keep the compound, not the parts
+        "balance",              // "work-life balance"
+        "life",
+        "mission",
+        "vision",
+        "proud",
+        "leading",
+        "world",
+        "attractive",
+        "equal",
+        "equality",
+        "equity",
+        "anonymous",
+        "anonymous",
+        "protected",
+        "sensitive",
+        "careful",
+        "relevant",
+        "complete",
+        "complete",
+        "continuously",
+        "selection",
+        "interview",
+        "interviews",
+        "probationary",
+        "period",
+        "criminal",
+        "war",
+        "deployed",
+
+        // ── temporal/quantifier noise (new) ──────────────────────────────────
+        "five",
+        "least",                // "at least five years"
+        "years",                // already in list — confirm
+        "days",
+        "clock",
+        "tomorrow",
+        "today",
+        "deadline",
+
+        // ── job-ad qualifier boilerplate ────────────────────────────────────────────
+        "documented",       // "documented experience in X" ×6
+        "meritorious",      // Swedish nice-to-have marker
+        "structured",       // "works in a structured way"
+        "sustainable",      // "finds sustainable solutions"
+        "conscious",        // "quality-conscious"
+        "manner",           // "in an independent manner"
+        "prerequisite",
+        "continuously",
+        "complete",
+        "briefly",
+        "suitable",
+        "prerequisite",
+
+        // ── org/geography noise ──────────────────────────────────────────────────────
+        "sector",           // "public sector" — the compound is relevant, not the word
+        "public",
+        "national",
+        "regional",
+        "hospital",
+        "register",
+        "registers",
+        "record",
+        "records",
+        "component",
+        "components",
+        "party",
+        "provider",
+        "providers",
+        "supplier",
+        "suppliers",
+        "representative",
+        "representatives",
+        "flow",
+        "flows",
+        "interface",        // bigram "integrations interfaces" is the signal
+        "interfaces",
+        "generation",
+
+        // ── soft skill filler ────────────────────────────────────────────────────────
+        "structured",
+        "independently",
+        "manner",
+        "sustainable",
+        "conscious",
+        "carefully",
+        "proactively",
+        "motivated",
+        "social",
+        "socially",
+        "complex",
+        "central",
+        "cross",
+        "functional",       // keep "cross-functional" as a bigram but not the parts
+        "balance",
+        "life",
+        "proud",
+        "attractive",
+        "equal",
+        "equality",
+        "equity",
+        "anonymous",
+        "protected",
+        "probationary",
+        "criminal",
+        "deployed",
+        "war",
+
+        // ── quantifiers that appear in requirements but carry no CV signal ───────────
+        "five",
+        "least",
+        "modern",           // "modern web frameworks" — "modern" alone is noise
+        "efficiency",       // debatable, but appears in boilerplate context here
+
+        // Generic tech-job adjectives/nouns that are NOT domain signal
+        "technical",        // "technical solutions", "technical problems" — too vague
+        "business",         // "business representatives" — noise
+        "methods",          // "working methods" — noise  
+        "flows",            // "information flows" — noise
+        "deliveries",       // "technical deliveries" — noise
+        "Qualifications",   // section header
+        "quality",          // "data quality", "quality-conscious" — too generic alone
+        "conscious",        // "quality-conscious"
+        "optimizing",       // "optimizing SQL queries" — the SQL is the signal, not "optimizing"
+        "optimization",
+        "interfaces",       // "integrations and interfaces" — interfaces alone is noise; bigram carries the signal
+        "queries",          // alone it's generic; "SQL queries" bigram is the signal
+        "sector",
+        "public",
+        "national",
+        "register",
+        "registers",
+        "record",
+        "records",
+        "structured",
+        "sustainable",
+        "manner",
+        "documented",
+        "meritorious",
+        "prerequisite",
+        "efficiency",
+        "continuously",
+        "suitable",
+
+        // These cover cross-line bigram leakage even when vocab check fails
+        "further",          // "further developing" — "further" alone is noise
+        "natural",          // "natural part of the role"
+        "forward",          // "drives your work forward"
+        "carefully",
+        "analyzes",
+        "analyze",
+        "interest",
+        "interests",
+        "independently",
     };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -392,9 +634,7 @@ public class KeywordAnalysisService : IKeywordAnalysisService
 
     private static readonly char[] Separators =
     [
-        ' ', '\t', ',', ';', ':',
-        '/', '\\', '(', ')', '[', ']',
-        '"', '\'', '–', '—', '|', '!', '?', '@',
+        ' ', '\n', '\r', '\t', ',', '.', ';', ':', '(', ')', '[', ']', '{', '}', '/', '\\', '|', '<', '>', '-', '•'
     ];
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -407,16 +647,38 @@ public class KeywordAnalysisService : IKeywordAnalysisService
     // Neither condition requires any domain knowledge.
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static bool IsImportantToken(
-        string token,
-        IReadOnlyDictionary<string, int> jobAdFrequency)
+    private static readonly HashSet<string> KnownAcronyms = new(StringComparer.Ordinal)
     {
-        // Repeated in this specific ad → the hiring manager emphasised it
-        if (jobAdFrequency.TryGetValue(token, out var freq) && freq >= 2)
+        "C#", "SQL", "API", "AI", ".NET", "IT", "CI", "CD", "UI", "UX",
+        "ORM", "JWT", "HTTP", "REST", "XML", "JSON", "CSS", "HTML",
+    };
+
+    private static bool IsKnownAcronym(string token) =>
+        KnownAcronyms.Contains(token) || token.All(c => char.IsUpper(c) || c == '#' || c == '.');
+
+    private bool IsImportantToken(
+    string token,
+    IReadOnlyDictionary<string, int> jobAdFrequency)
+    {
+        // 1. Known acronyms (.NET, API, AI) are always important
+        if (KnownAcronyms.Contains(token))
             return true;
 
-        // Rare in general English → domain-specific term (tech, medical, legal …)
-        return !CommonEnglishVocab.Contains(token);
+        // 2. Reject short words that aren't acronyms (keeps out noise)
+        if (token.Length < 4)
+            return false;
+
+        // 3. If it's a common everyday word ("work", "team", "develop"), treat as generic noise (1x weight)
+        if (CommonEnglishVocab.Contains(token))
+        {
+            // OPTIONAL: If you want heavily repeated generic words to become "important", uncomment the next line:
+            // if (jobAdFrequency.TryGetValue(token, out int freq) && freq >= 3) return true;
+
+            return false;
+        }
+
+        // 4. If it's NOT in the common vocabulary (e.g. "React", "SQL", "conveyancing"), it's an important domain keyword!
+        return true;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -490,7 +752,7 @@ public class KeywordAnalysisService : IKeywordAnalysisService
             : Math.Round((decimal)matchedBigrams.Count / jobBigrams.Count * 100, 1);
 
         var score = Math.Clamp(
-            Math.Round(tokenScore * 0.80m + bigramScore * 0.20m, 1),
+            Math.Round(tokenScore * 0.90m + bigramScore * 0.10m, 1),
             0m, 100m);
 
         // --- Feedback payload ---
@@ -498,22 +760,30 @@ public class KeywordAnalysisService : IKeywordAnalysisService
         var topMatched = matchedImportant
             .Concat(matchedBigrams)
             .Concat(matchedGeneral)
-            .Take(10)
+            .Distinct()
+            //.Take(25) // For now, include all matches — the UI can decide how many to show
             .ToList();
 
         var topMissing = missingImportant
             .Concat(missingBigrams)
             .Concat(missingGeneral)
-            .Take(10)
+            .Distinct()
+            //.Take(25) // For now, include all misses — the UI can decide how many to show
             .ToList();
 
         string tip;
         if (topMissing.Count == 0)
-            tip = "Excellent coverage — your resume closely mirrors the job requirements.";
+        {
+            tip = "Excellent coverage! Your resume closely mirrors the core technical terminology and phrases found in the job ad.";
+        }
         else if (missingImportant.Count > 0)
-            tip = "Focus on adding the missing key terms to your skills or summary section.";
+        {
+            tip = "Tip: Consider adding some of these missing key terms to your skills or summary section. (Note: Our system extracts terms based on rarity, so use your best judgment to only include terms that genuinely match your experience!)";
+        }
         else
-            tip = "Consider weaving the missing keywords into your role descriptions.";
+        {
+            tip = "Tip: You've hit the main keywords, but try weaving some of these specific phrases into your role descriptions for even better alignment.";
+        }
 
         var feedback = JsonSerializer.Serialize(new
         {
@@ -601,28 +871,36 @@ public class KeywordAnalysisService : IKeywordAnalysisService
     // ─────────────────────────────────────────────────────────────────────────
 
     private List<string> ExtractBigrams(
-        string text,
-        IReadOnlyDictionary<string, int> jobAdFrequency)
+    string text,
+    IReadOnlyDictionary<string, int> jobAdFrequency)
     {
         if (string.IsNullOrWhiteSpace(text))
             return [];
 
+        // Split each line individually — bullet points must NEVER
+        // contribute tokens to bigrams across their boundary.
+        // Also split on ':' so "Tasks include: developing" doesn't
+        // produce the bigram "include developing".
         var sentences = text.Split(
-            ['.', '\n', '\r', '!', '?', ';'],
+            ['.', '\n', '\r', '!', '?', ';', ':'],
             StringSplitOptions.RemoveEmptyEntries);
 
         var bigrams = new List<string>();
         foreach (var sentence in sentences)
         {
             var tokens = Tokenize(sentence).ToList();
+
+            // Require BOTH tokens to be important and BOTH to be
+            // non-trivially long. This cuts "structured way",
+            // "independent manner", "sustainable solutions" etc.
             for (var i = 0; i < tokens.Count - 1; i++)
             {
                 var t1 = tokens[i];
                 var t2 = tokens[i + 1];
 
-                if (IsImportantToken(t1, jobAdFrequency) ||
-                    IsImportantToken(t2, jobAdFrequency) ||
-                    (t1.Length > 5 && t2.Length > 5))
+                if (t1.Length > 2 && t2.Length > 2
+                    && IsImportantToken(t1, jobAdFrequency)
+                    && IsImportantToken(t2, jobAdFrequency))
                 {
                     bigrams.Add($"{t1} {t2}");
                 }
@@ -661,9 +939,16 @@ public class KeywordAnalysisService : IKeywordAnalysisService
             .Select(t =>
             {
                 var freq = jobAdFrequency.GetValueOrDefault(t);
-                var reason = freq >= 2
-                    ? $"repeated {freq}×"
-                    : "rare in English";
+                // Show WHY each token was classified as important
+                string reason;
+                if (KnownAcronyms.Contains(t))
+                    reason = "known acronym";
+                else if (t.Length < 4)
+                    reason = "short — should have been filtered";
+                else if (CommonEnglishVocab.Contains(t))
+                    reason = "BUG: in vocab but still important";
+                else
+                    reason = $"not in common vocab (freq={freq})";
                 return new DebugToken(t, freq, reason);
             })
             .ToList();
@@ -673,9 +958,19 @@ public class KeywordAnalysisService : IKeywordAnalysisService
             .OrderBy(t => t)
             .ToList();
 
+        // NEW: show section extraction diagnostics
+        var sectionStartLine = rawJobAdText
+            .Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+            .Select((line, idx) => (line, idx))
+            .FirstOrDefault(x => RequirementsMarkers.Any(m =>
+                x.line.ToLowerInvariant().Contains(m)));
+
         var result = new KeywordDebugInfo
         {
             ScoredText = requirementsText,
+            ScoredTextLengthVsTotal = $"{requirementsText.Length}/{rawJobAdText.Length} chars " +
+                $"({100 * requirementsText.Length / rawJobAdText.Length}% of ad)",
+            SectionStartedAt = sectionStartLine.line ?? "FULL TEXT USED — no marker found",
             ImportantTokens = importantTokens,
             GeneralTokens = generalTokens,
             Bigrams = jobBigrams,
