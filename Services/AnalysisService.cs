@@ -1,10 +1,10 @@
-﻿using System.Runtime.CompilerServices;
-using System.Threading.Channels;
-using glint_backend.DTOs.Requests;
+﻿using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
 using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using glint_backend.Models;
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 
 namespace glint_backend.Services
 {
@@ -18,6 +18,8 @@ namespace glint_backend.Services
         IKeywordAnalysisService keywordService,
         IPdfExtractionService pdfExtractor) : IAnalysisService
     {
+        private const int MaxResumesPerUser = 5;
+
         // ── Guest (stateless) ─────────────────────────────────────────────────
 
         public async Task<AnalyzeResponse> AnalyzeGuestAsync(byte[] pdfBytes, JobAdvertisement jobAdvertisement)
@@ -191,12 +193,30 @@ namespace glint_backend.Services
                 return (saved.FileData, saved.Id);
             }
 
-            var validation = await fileValidator.ValidatePdfAsync(request.Resume!);
+            var uploadedResume = request.Resume
+                ?? throw new InvalidOperationException("A resume file is required.");
+
+            var validation = await fileValidator.ValidatePdfAsync(uploadedResume);
             if (!validation.IsValid)
                 throw new InvalidOperationException(validation.ErrorMessage);
 
-            // File is used for analysis only — not saved to the database
-            return (validation.FileBytes!, null);
+            var count = await resumeRepo.CountByUserIdAsync(userId);
+            if (count >= MaxResumesPerUser)
+                throw new InvalidOperationException(
+                    $"You may only have {MaxResumesPerUser} saved resumes. Please delete one before uploading a new one.");
+
+            var resume = new Resume
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FileName = uploadedResume.FileName,
+                FileData = validation.FileBytes!,
+                UploadedAt = DateTime.UtcNow
+            };
+
+            await resumeRepo.AddAsync(resume);
+
+            return (validation.FileBytes!, resume.Id);
         }
 
         private async Task<(Analysis analysis, JobAdvertisement jobAd, string? notice)> CreateAnalysisAsync(
@@ -245,6 +265,7 @@ namespace glint_backend.Services
         private async Task<AnalysisResult> RunMethodSafeAsync(
             Guid analysisId, AnalysisMethod method, byte[] pdfBytes, JobAdvertisement jobAdvertisement)
         {
+            var createdAt = DateTime.UtcNow;
             try
             {
                 return await RunMethodAsync(analysisId, method, pdfBytes, jobAdvertisement);
@@ -258,6 +279,7 @@ namespace glint_backend.Services
                     Method = method,
                     Score = 0,
                     Feedback = $"{method} analysis failed: {ex.Message}",
+                    CreatedAt = createdAt,
                     CompletedAt = DateTime.UtcNow
                 };
             }
@@ -266,6 +288,8 @@ namespace glint_backend.Services
         private async Task<AnalysisResult> RunMethodAsync(
             Guid analysisId, AnalysisMethod method, byte[] pdfBytes, JobAdvertisement jobAdvertisement)
         {
+            var createdAt = DateTime.UtcNow;
+
             var doc = await pdfExtractor.ExtractAsync(pdfBytes);
 
             (decimal Score, string Feedback) analysisResult = method switch
@@ -283,6 +307,7 @@ namespace glint_backend.Services
                 Method = method,
                 Score = analysisResult.Score,
                 Feedback = analysisResult.Feedback,
+                CreatedAt = createdAt,
                 CompletedAt = DateTime.UtcNow
             };
         }

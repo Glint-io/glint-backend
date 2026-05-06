@@ -11,7 +11,7 @@ public class ResumeService(
     IFileValidationService fileValidator,
     IAnalysisRepository analysisRepo) : IResumeService
 {
-    private const int MaxResumesPerUser = 3;
+    private const int MaxResumesPerUser = 5;
 
     public async Task<UploadResumeResponse> UploadAsync(Guid userId, IFormFile file)
     {
