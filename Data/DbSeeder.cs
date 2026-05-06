@@ -165,6 +165,7 @@ public static class DbSeeder
     {
         var analysisId = Guid.NewGuid();
         var createdAt = DateTime.UtcNow.AddDays(-daysAgo);
+        var resultCreatedAt = createdAt.AddSeconds(1);
         var completedAt = createdAt.AddSeconds(8);
 
         await context.Analyses.AddAsync(new Analysis
@@ -179,9 +180,9 @@ public static class DbSeeder
         });
 
         await context.AnalysisResults.AddRangeAsync(
-            new AnalysisResult { Id = Guid.NewGuid(), AnalysisId = analysisId, Method = AnalysisMethod.AI, Score = aiScore, Feedback = FeedbackFor(AnalysisMethod.AI, aiScore), CompletedAt = completedAt },
-            new AnalysisResult { Id = Guid.NewGuid(), AnalysisId = analysisId, Method = AnalysisMethod.RuleBased, Score = ruleScore, Feedback = FeedbackFor(AnalysisMethod.RuleBased, ruleScore), CompletedAt = completedAt },
-            new AnalysisResult { Id = Guid.NewGuid(), AnalysisId = analysisId, Method = AnalysisMethod.Keyword, Score = kwScore, Feedback = FeedbackFor(AnalysisMethod.Keyword, kwScore), CompletedAt = completedAt }
+            new AnalysisResult { Id = Guid.NewGuid(), AnalysisId = analysisId, Method = AnalysisMethod.AI, Score = aiScore, Feedback = FeedbackFor(AnalysisMethod.AI, aiScore), CreatedAt = resultCreatedAt, CompletedAt = completedAt },
+            new AnalysisResult { Id = Guid.NewGuid(), AnalysisId = analysisId, Method = AnalysisMethod.RuleBased, Score = ruleScore, Feedback = FeedbackFor(AnalysisMethod.RuleBased, ruleScore), CreatedAt = resultCreatedAt, CompletedAt = completedAt },
+            new AnalysisResult { Id = Guid.NewGuid(), AnalysisId = analysisId, Method = AnalysisMethod.Keyword, Score = kwScore, Feedback = FeedbackFor(AnalysisMethod.Keyword, kwScore), CreatedAt = resultCreatedAt, CompletedAt = completedAt }
         );
     }
 
