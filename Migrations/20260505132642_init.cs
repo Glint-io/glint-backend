@@ -32,6 +32,7 @@ namespace glint_backend.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     RawText = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -69,7 +70,7 @@ namespace glint_backend.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "RefreshToken",
+                name: "RefreshTokens",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -81,9 +82,9 @@ namespace glint_backend.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_RefreshToken", x => x.Id);
+                    table.PrimaryKey("PK_RefreshTokens", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_RefreshToken_Users_UserId",
+                        name: "FK_RefreshTokens_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "Id",
@@ -117,7 +118,7 @@ namespace glint_backend.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ResumeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ResumeId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     JobAdvertisementId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     JobTitle = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -153,7 +154,8 @@ namespace glint_backend.Migrations
                     Method = table.Column<int>(type: "int", nullable: false),
                     Score = table.Column<decimal>(type: "decimal(5,2)", nullable: true),
                     Feedback = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    JobAdvertisementId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -164,6 +166,11 @@ namespace glint_backend.Migrations
                         principalTable: "Analyses",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AnalysisResults_JobAdvertisements_JobAdvertisementId",
+                        column: x => x.JobAdvertisementId,
+                        principalTable: "JobAdvertisements",
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateIndex(
@@ -187,6 +194,11 @@ namespace glint_backend.Migrations
                 column: "AnalysisId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AnalysisResults_JobAdvertisementId",
+                table: "AnalysisResults",
+                column: "JobAdvertisementId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_JobAdvertisements_UserId",
                 table: "JobAdvertisements",
                 column: "UserId");
@@ -197,8 +209,8 @@ namespace glint_backend.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_RefreshToken_UserId",
-                table: "RefreshToken",
+                name: "IX_RefreshTokens_UserId",
+                table: "RefreshTokens",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
@@ -223,7 +235,7 @@ namespace glint_backend.Migrations
                 name: "OneTimeCodes");
 
             migrationBuilder.DropTable(
-                name: "RefreshToken");
+                name: "RefreshTokens");
 
             migrationBuilder.DropTable(
                 name: "Analyses");

@@ -12,8 +12,8 @@ using glint_backend.Data;
 namespace glint_backend.Migrations
 {
     [DbContext(typeof(AppDBContext))]
-    [Migration("20260429123657_MakeResumeIdNullable")]
-    partial class MakeResumeIdNullable
+    [Migration("20260505132642_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -76,6 +76,9 @@ namespace glint_backend.Migrations
                     b.Property<string>("Feedback")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("JobAdvertisementId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Method")
                         .HasColumnType("int");
 
@@ -85,6 +88,8 @@ namespace glint_backend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AnalysisId");
+
+                    b.HasIndex("JobAdvertisementId");
 
                     b.ToTable("AnalysisResults");
                 });
@@ -101,6 +106,10 @@ namespace glint_backend.Migrations
                     b.Property<string>("RawText")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
@@ -259,7 +268,14 @@ namespace glint_backend.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("glint_backend.Models.JobAdvertisement", "JobAdvertisement")
+                        .WithMany()
+                        .HasForeignKey("JobAdvertisementId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Analysis");
+
+                    b.Navigation("JobAdvertisement");
                 });
 
             modelBuilder.Entity("glint_backend.Models.JobAdvertisement", b =>

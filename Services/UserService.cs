@@ -6,12 +6,23 @@ namespace glint_backend.Services;
 
 public class UserService(IAnalysisRepository analysisRepo) : IUserService
 {
-    public async Task<PagedResponse<AnalysisHistoryItemResponse>> GetHistoryAsync(
-        Guid userId, PaginationRequest pagination)
+    private static DateTime? GetCreatedAtFrom(AnalysisHistoryRange range) => range switch
     {
+        AnalysisHistoryRange.Today => DateTime.UtcNow.Date,
+        AnalysisHistoryRange.Last7Days => DateTime.UtcNow.AddDays(-7),
+        AnalysisHistoryRange.Last30Days => DateTime.UtcNow.AddDays(-30),
+        AnalysisHistoryRange.Last365Days => DateTime.UtcNow.AddDays(-365),
+        _ => null
+    };
+
+    public async Task<PagedResponse<AnalysisHistoryItemResponse>> GetHistoryAsync(
+        Guid userId, AnalysisHistoryRequest request)
+    {
+        var createdAtFrom = GetCreatedAtFrom(request.Range);
+
         // get paged analysis history
         var (items, total) = await analysisRepo.GetPagedByUserIdAsync(
-            userId, pagination.Page, pagination.PageSize);
+            userId, request.Page, request.PageSize, createdAtFrom);
 
         // map the items so that we only return the necessary fields to the client
         var mapped = items.Select(a => new AnalysisHistoryItemResponse
@@ -22,7 +33,7 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             Status = a.Status.ToString(),
             ResumeFileName = a.Resume?.FileName ?? string.Empty,
             JobAdSnippet = a.JobAdvertisement?.RawText.Length > 200
-                ? a.JobAdvertisement.RawText[..200] + "…"
+                ? a.JobAdvertisement.RawText[..200] + "â€¦"
                 : a.JobAdvertisement?.RawText ?? string.Empty,
             Results = a.Results.Select(r => new AnalysisResultResponse
             {
@@ -38,16 +49,17 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
         return new PagedResponse<AnalysisHistoryItemResponse>
         {
             Items = mapped,
-            Page = pagination.Page,
-            PageSize = pagination.PageSize,
+            Page = request.Page,
+            PageSize = request.PageSize,
             TotalCount = total
         };
     }
 
     // get overall statistics
-    public async Task<StatisticsResponse> GetStatisticsAsync(Guid userId)
+    public async Task<StatisticsResponse> GetStatisticsAsync(Guid userId, AnalysisHistoryRange range)
     {
-        var results = (await analysisRepo.GetResultsByUserIdAsync(userId)).ToList();
+        var createdAtFrom = GetCreatedAtFrom(range);
+        var results = (await analysisRepo.GetResultsByUserIdAsync(userId, createdAtFrom)).ToList();
 
         // Count distinct analyses that belong to this user
         var totalAnalyses = results

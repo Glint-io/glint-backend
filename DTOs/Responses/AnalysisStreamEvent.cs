@@ -8,6 +8,7 @@ public class AnalysisStreamEvent
     // Sent on the very first event so the client knows which analysis this belongs to
     public Guid? AnalysisId { get; set; }
     public string? JobTitle { get; set; }
+    public string? JobAdvertisementNotice { get; set; }
 
     // The individual method result
     public AnalysisResultResponse Result { get; set; } = null!;

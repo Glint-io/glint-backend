@@ -11,7 +11,7 @@ namespace glint_backend.Services
     public class AnalysisService(
         IAnalysisRepository analysisRepo,
         IResumeRepository resumeRepo,
-        IJobAdvertisementRepository jobAdRepo,
+        IJobAdvertisementService jobAdvertisementService,
         IFileValidationService fileValidator,
         IAiAnalysisService aiService,
         IRuleBasedAnalysisService ruleService,
@@ -40,7 +40,7 @@ namespace glint_backend.Services
         public async Task<AnalyzeResponse> AnalyzeAuthenticatedAsync(Guid userId, AnalyzeRequest request)
         {
             var (pdfBytes, resumeId) = await ResolveResumeAsync(userId, request);
-            var (analysis, jobAd) = await CreateAnalysisAsync(userId, resumeId, request);
+            var (analysis, jobAd, notice) = await CreateAnalysisAsync(userId, resumeId, request);
 
             List<AnalysisResult> results;
             try
@@ -67,7 +67,8 @@ namespace glint_backend.Services
                 JobTitle = analysis.JobTitle,
                 Status = analysis.Status,
                 CreatedAt = analysis.CreatedAt,
-                Results = MapResults(results)
+                Results = MapResults(results),
+                JobAdvertisementNotice = notice
             };
         }
 
@@ -84,7 +85,7 @@ namespace glint_backend.Services
             Guid userId, AnalyzeRequest request, AnalysisMethod method)
         {
             var (pdfBytes, resumeId) = await ResolveResumeAsync(userId, request);
-            var (analysis, jobAd) = await CreateAnalysisAsync(userId, resumeId, request);
+            var (analysis, jobAd, _) = await CreateAnalysisAsync(userId, resumeId, request);
 
             AnalysisResult result;
             try
@@ -138,7 +139,7 @@ namespace glint_backend.Services
             [EnumeratorCancellation] CancellationToken ct = default)
         {
             var (pdfBytes, resumeId) = await ResolveResumeAsync(userId, request);
-            var (analysis, jobAd) = await CreateAnalysisAsync(userId, resumeId, request);
+            var (analysis, jobAd, notice) = await CreateAnalysisAsync(userId, resumeId, request);
 
             var channel = Channel.CreateUnbounded<AnalysisStreamEvent>();
             bool isFirst = true;
@@ -152,6 +153,7 @@ namespace glint_backend.Services
                 {
                     AnalysisId = isFirst ? analysis.Id : null,
                     JobTitle = isFirst ? analysis.JobTitle : null,
+                    JobAdvertisementNotice = notice,
                     Result = MapResult(result),
                     EventType = "result"
                 };
@@ -197,34 +199,37 @@ namespace glint_backend.Services
             return (validation.FileBytes!, null);
         }
 
-        private async Task<(Analysis analysis, JobAdvertisement jobAd)> CreateAnalysisAsync(
+        private async Task<(Analysis analysis, JobAdvertisement jobAd, string? notice)> CreateAnalysisAsync(
             Guid userId, Guid? resumeId, AnalyzeRequest request)
         {
             var jobTitle = string.IsNullOrWhiteSpace(request.JobTitle) ? null : request.JobTitle.Trim();
 
-            var jobAd = new JobAdvertisement
+            var saveResult = await jobAdvertisementService.CreateOrGetAsync(userId, new CreateJobAdvertisementRequest
             {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Title = jobTitle,
                 RawText = request.JobText,
-                CreatedAt = DateTime.UtcNow
-            };
-            await jobAdRepo.AddAsync(jobAd);
+                Title = jobTitle
+            });
 
             var analysis = new Analysis
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 ResumeId = resumeId,
-                JobAdvertisementId = jobAd.Id,
+                JobAdvertisementId = saveResult.JobAdvertisement.Id,
                 JobTitle = jobTitle,
                 CreatedAt = DateTime.UtcNow,
                 Status = AnalysisStatus.InProgress
             };
             await analysisRepo.AddAnalysisAsync(analysis);
 
-            return (analysis, jobAd);
+            return (analysis, new JobAdvertisement
+            {
+                Id = saveResult.JobAdvertisement.Id,
+                UserId = userId,
+                Title = saveResult.JobAdvertisement.Title,
+                RawText = saveResult.JobAdvertisement.RawText,
+                CreatedAt = saveResult.JobAdvertisement.CreatedAt
+            }, saveResult.Notice);
         }
 
         private async Task<List<AnalysisResult>> RunAllMethodsAsync(

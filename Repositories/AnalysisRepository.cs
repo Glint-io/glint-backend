@@ -8,11 +8,16 @@ namespace glint_backend.Repositories;
 public class AnalysisRepository(AppDBContext db) : IAnalysisRepository
 {
     public async Task<(IEnumerable<Analysis> Items, int TotalCount)> GetPagedByUserIdAsync(
-        Guid userId, int page, int pageSize)
+        Guid userId, int page, int pageSize, DateTime? createdAtFrom = null)
     {
         // Fetch analyses for the user with pagination, including related entities like Results, Resume, and JobAdvertisement.
         var query = db.Analyses
-            .Where(a => a.UserId == userId)
+            .Where(a => a.UserId == userId);
+
+        if (createdAtFrom.HasValue)
+            query = query.Where(a => a.CreatedAt >= createdAtFrom.Value);
+
+        query = query
             .Include(a => a.Results)
             .Include(a => a.Resume)
             .Include(a => a.JobAdvertisement)
@@ -29,12 +34,21 @@ public class AnalysisRepository(AppDBContext db) : IAnalysisRepository
     }
 
     // Fetch all analysis results for a user with some additional filtering
-    public async Task<IEnumerable<AnalysisResult>> GetResultsByUserIdAsync(Guid userId) =>
-        await db.AnalysisResults
-            .Where(r => r.Analysis.UserId == userId && r.Score != null)
+    public async Task<IEnumerable<AnalysisResult>> GetResultsByUserIdAsync(
+        Guid userId, DateTime? createdAtFrom = null)
+    {
+        var query = db.AnalysisResults
+            .Where(r => r.Analysis.UserId == userId && r.Score != null);
+
+        if (createdAtFrom.HasValue)
+            query = query.Where(r => r.Analysis.CreatedAt >= createdAtFrom.Value);
+
+        query = query
             .Include(r => r.Analysis)
-            .OrderBy(r => r.Analysis.CreatedAt)
-            .ToListAsync();
+            .OrderBy(r => r.Analysis.CreatedAt);
+
+        return await query.ToListAsync();
+    }
 
     // Methods for adding and updating analyses and results. These are used by the service layer to persist changes to the database.
     public async Task<Analysis> AddAnalysisAsync(Analysis analysis)

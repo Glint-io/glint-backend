@@ -1,4 +1,4 @@
-﻿using glint_backend.DTOs.Requests;
+using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
 using glint_backend.Exceptions;
 using glint_backend.Interfaces;
@@ -15,7 +15,8 @@ namespace glint_backend.Controllers.User;
 // User spesific endpoints for managing resume history, statistics, and saved resumes.
 public class UserController(
     IUserService userService,
-    IResumeService resumeService) : ControllerBase
+    IResumeService resumeService,
+    IJobAdvertisementService jobAdvertisementService) : ControllerBase
 {
     // Helper to get the current authenticated user's ID from claims. This is used in all endpoints to ensure actions are performed on the correct user's data.
     private Guid CurrentUserId =>
@@ -25,22 +26,22 @@ public class UserController(
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
 
-    public async Task<IActionResult> GetHistory([FromQuery] PaginationRequest pagination)
+    public async Task<IActionResult> GetHistory([FromQuery] AnalysisHistoryRequest request)
     {
         // Validate pagination parameters. If invalid, return 400 with details.
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var result = await userService.GetHistoryAsync(CurrentUserId, pagination);
+        var result = await userService.GetHistoryAsync(CurrentUserId, request);
         return Ok(result);
     }
 
     // User's overall statistics endpoint, consiting of avg score, total analyses, and trends over time.
     [HttpGet("statistics")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetStatistics()
+    public async Task<IActionResult> GetStatistics([FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
     {
-        var result = await userService.GetStatisticsAsync(CurrentUserId);
+        var result = await userService.GetStatisticsAsync(CurrentUserId, range);
         return Ok(result);
     }
 
@@ -111,6 +112,51 @@ public class UserController(
         catch (Exception ex)
         {
             return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
+        }
+    }
+
+    // Get all job advertisements saved by the current user
+    [HttpGet("job-advertisement")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetJobAdvertisements()
+    {
+        var result = await jobAdvertisementService.GetUserJobAdvertisementsAsync(CurrentUserId);
+        return Ok(result);
+    }
+
+    // Create or retrieve existing job advertisement with deduplication
+    [HttpPost("job-advertisement")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateJobAdvertisement([FromBody] CreateJobAdvertisementRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RawText))
+            return BadRequest(new { error = "Job advertisement text cannot be empty." });
+
+        try
+        {
+            var result = await jobAdvertisementService.CreateOrGetAsync(CurrentUserId, request);
+            return StatusCode(StatusCodes.Status201Created, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
+        }
+    }
+
+    [HttpDelete("job-advertisement/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteJobAdvertisement(Guid id)
+    {
+        try
+        {
+            await jobAdvertisementService.DeleteAsync(CurrentUserId, id);
+            return NoContent();
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
         }
     }
 }
