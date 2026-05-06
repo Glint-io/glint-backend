@@ -129,6 +129,7 @@ namespace glint_backend
             builder.Services.AddScoped<IAnalysisService, AnalysisService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
+            builder.Services.AddScoped<IJobAdvertisementService, JobAdvertisementService>();
 
             // ── Build App ─────────────────────────────────────────────────────────
             var app = builder.Build();
@@ -137,7 +138,7 @@ namespace glint_backend
             {
                 using var scope = app.Services.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
-                await DbSeeder.SeedAsync(db);
+                // await DbSeeder.SeedAsync(db);
                 app.UseSwagger();
                 app.UseSwaggerUI(options =>
                 {
