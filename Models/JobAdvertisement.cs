@@ -19,6 +19,8 @@ public class JobAdvertisement
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public bool IsArchived { get; set; }
+
     // Navigation
     [ForeignKey(nameof(UserId))]
     public User User { get; set; } = null!;

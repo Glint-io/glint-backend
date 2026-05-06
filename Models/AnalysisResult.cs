@@ -28,7 +28,12 @@ public class AnalysisResult
 
     public DateTime? CompletedAt { get; set; }
 
+    public Guid? JobAdvertisementId { get; set; }
+
     // Navigation
     [ForeignKey(nameof(AnalysisId))]
     public Analysis Analysis { get; set; } = null!;
+
+    [ForeignKey(nameof(JobAdvertisementId))]
+    public JobAdvertisement? JobAdvertisement { get; set; }
 }

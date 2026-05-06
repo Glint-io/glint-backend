@@ -73,6 +73,9 @@ namespace glint_backend.Migrations
                     b.Property<string>("Feedback")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("JobAdvertisementId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Method")
                         .HasColumnType("int");
 
@@ -82,6 +85,8 @@ namespace glint_backend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AnalysisId");
+
+                    b.HasIndex("JobAdvertisementId");
 
                     b.ToTable("AnalysisResults");
                 });
@@ -94,6 +99,9 @@ namespace glint_backend.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
 
                     b.Property<string>("RawText")
                         .IsRequired()
@@ -260,7 +268,14 @@ namespace glint_backend.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("glint_backend.Models.JobAdvertisement", "JobAdvertisement")
+                        .WithMany()
+                        .HasForeignKey("JobAdvertisementId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Analysis");
+
+                    b.Navigation("JobAdvertisement");
                 });
 
             modelBuilder.Entity("glint_backend.Models.JobAdvertisement", b =>

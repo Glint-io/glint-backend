@@ -9,7 +9,7 @@ public interface IUserService
 {
     // Methods for user-specific operations, e.g. retrieving analysis history and statistics.
     Task<PagedResponse<AnalysisHistoryItemResponse>> GetHistoryAsync(
-        Guid userId, PaginationRequest pagination);
+        Guid userId, AnalysisHistoryRequest request);
 
-    Task<StatisticsResponse> GetStatisticsAsync(Guid userId);
+    Task<StatisticsResponse> GetStatisticsAsync(Guid userId, AnalysisHistoryRange range);
 }

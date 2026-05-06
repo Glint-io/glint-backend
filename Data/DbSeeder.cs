@@ -95,20 +95,21 @@ public static class DbSeeder
 
         // ── Job Advertisements ────────────────────────────────────────────────
         var jobAdIds = new[]
-        {
-            (Id: Guid.NewGuid(), UserId: userId1, Text: "Senior .NET Developer – 5+ years C#, ASP.NET Core, EF Core and REST APIs required. Azure experience a plus."),
-            (Id: Guid.NewGuid(), UserId: userId1, Text: "Backend Engineer at a fintech startup. C#, Kafka, PostgreSQL, Docker. Strong system design skills needed."),
-            (Id: Guid.NewGuid(), UserId: userId1, Text: "Lead Software Engineer. Team leadership, .NET 8, microservices architecture, CI/CD pipelines."),
-            (Id: Guid.NewGuid(), UserId: userId1, Text: "Software Engineer – full stack. React, TypeScript, .NET, SQL Server. Agile environment."),
-            (Id: Guid.NewGuid(), UserId: userId1, Text: "Platform Engineer. Kubernetes, Terraform, .NET services, strong DevOps background required."),
-            (Id: Guid.NewGuid(), UserId: userId2, Text: "Junior Frontend Developer – React, TypeScript and Tailwind CSS. Fully remote role."),
-            (Id: Guid.NewGuid(), UserId: userId2, Text: "Frontend Engineer – Next.js, REST API integration, responsive design, Git workflows."),
+{
+            new { Id = Guid.NewGuid(), Title = "A Senior .NET Devloper", UserId = userId1, Text = "Senior .NET Developer – 5+ years C#, ASP.NET Core, EF Core and REST APIs required. Azure experience a plus." },
+            new { Id = Guid.NewGuid(), Title = "Backend Engineer", UserId = userId1, Text = "Backend Engineer at a fintech startup. C#, Kafka, PostgreSQL, Docker. Strong system design skills needed." },
+            new { Id = Guid.NewGuid(), Title = "Lead Software Engineer", UserId = userId1, Text = "Lead Software Engineer. Team leadership, .NET 8, microservices architecture, CI/CD pipelines." },
+            new { Id = Guid.NewGuid(), Title = "Software Engineer – full stack", UserId = userId1, Text = "Software Engineer – full stack. React, TypeScript, .NET, SQL Server. Agile environment." },
+            new { Id = Guid.NewGuid(), Title = "Platform Engineer", UserId = userId1, Text = "Platform Engineer. Kubernetes, Terraform, .NET services, strong DevOps background required." },
+            new { Id = Guid.NewGuid(), Title = "Junior Frontend Developer", UserId = userId2, Text = "Junior Frontend Developer – React, TypeScript and Tailwind CSS. Fully remote role." },
+            new { Id = Guid.NewGuid(), Title = "Frontend Engineer", UserId = userId2, Text = "Frontend Engineer – Next.js, REST API integration, responsive design, Git workflows." },
         };
 
         await context.JobAdvertisements.AddRangeAsync(jobAdIds.Select(j => new JobAdvertisement
         {
             Id = j.Id,
             UserId = j.UserId,
+            Title = j.Title,
             RawText = j.Text,
             CreatedAt = DateTime.UtcNow.AddDays(-50)
         }));
