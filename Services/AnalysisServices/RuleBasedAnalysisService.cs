@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Google.GenAI;
+using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using glint_backend.Models;
 
@@ -91,21 +92,13 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
             await Task.Delay(3000);
             return await EvaluateRulesAsync(jobText, resumeText, retryCount + 1);
         }
-        // Handle exhausted quota or specific AI limits with a friendly error "check"
+        // For rate-limits/quota we now surface an explicit exception — do not return a fake success
         catch (Exception ex) when (Is429(ex))
         {
-            return
-            [
-                new RuleCheckResult
-                {
-                    Rule = "AI rule evaluation unavailable",
-                    Passed = false,
-                    Weight = 0,
-                    Detail = ex.Message.Contains("limit: 0")
-                        ? "The rule-based analysis has reached its daily limit."
-                        : "AI analysis is temporarily at capacity."
-                }
-            ];
+            throw new AiServiceUnavailableException(
+                ex.Message.Contains("limit: 0")
+                    ? "Rule-based AI quota exhausted for this project."
+                    : "Rule-based AI temporarily at capacity. Please try again shortly.", ex);
         }
         // Catch-all for unexpected parsing or connection errors
         catch (Exception ex)

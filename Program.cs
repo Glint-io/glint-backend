@@ -12,6 +12,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Net.Http.Headers;
 using System.Text;
+using Microsoft.Extensions.Configuration; // added for AddUserSecrets
+using Microsoft.Extensions.Configuration.UserSecrets; // added for AddUserSecrets<T>()
 
 namespace glint_backend
 {
@@ -20,6 +22,13 @@ namespace glint_backend
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Load user secrets in development so sensitive keys placed in user-secrets work
+            if (builder.Environment.IsDevelopment())
+            {
+                // optional: true so app still runs if user-secrets are not configured on this machine
+                builder.Configuration.AddUserSecrets<Program>(optional: true);
+            }
 
             // ── Database ──────────────────────────────────────────────────────────
             builder.Services.AddDbContext<AppDBContext>(options =>
@@ -105,11 +114,20 @@ namespace glint_backend
                 });
             });
 
-            builder.Services.AddHttpClient("Resend", client =>
+            var resendApiKey = builder.Configuration["Resend:ApiKey"];
+            if (!string.IsNullOrWhiteSpace(resendApiKey))
             {
-                client.DefaultRequestHeaders.Authorization =
-                    new AuthenticationHeaderValue("Bearer", builder.Configuration["Resend:ApiKey"]);
-            });
+                builder.Services.AddHttpClient("Resend", client =>
+                {
+                    client.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", resendApiKey);
+                });
+            }
+            else
+            {
+                // Register a named client without auth header so code can still request it in tests/dev
+                builder.Services.AddHttpClient("Resend");
+            }
 
             // ── Dependency Injection: Repositories & Services ─────────────────────
             // Repositories
