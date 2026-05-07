@@ -270,6 +270,11 @@ namespace glint_backend.Services
             {
                 return await RunMethodAsync(analysisId, method, pdfBytes, jobAdvertisement);
             }
+            catch (glint_backend.Exceptions.AiServiceUnavailableException)
+            {
+                // Bubble AI service unavailability up so the controller can return 429
+                throw;
+            }
             catch (Exception ex)
             {
                 return new AnalysisResult
