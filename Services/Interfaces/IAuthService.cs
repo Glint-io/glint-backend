@@ -10,5 +10,7 @@ namespace glint_backend.Services.Interfaces
         Task VerifyEmailAsync(VerifyEmailRequest request);
         Task<AuthResponse> RefreshAsync(RefreshTokenRequest request);
         Task ResendVerificationAsync(ResendVerificationRequest request);
+        Task ForgotPasswordAsync(ForgotPasswordRequest request);
+        Task ResetPasswordAsync(ResetPasswordRequest request);
     }
 }
