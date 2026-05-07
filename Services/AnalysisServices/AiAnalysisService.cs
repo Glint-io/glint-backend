@@ -1,5 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 using Google.GenAI;
+using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using glint_backend.Models;
 
@@ -11,17 +12,14 @@ public class AiAnalysisService : IAiAnalysisService
     private const string ModelName = "gemini-3.1-flash-lite-preview";
     private const int MaxRetries = 1;
 
-    // Matches "Match Score: 85" or similar patterns, allowing for markdown asterisks
     private static readonly Regex ScoreRegex = new(
         @"match\s*score\s*[:\-]?\s*\*{0,2}\s*([0-9]{1,3}(?:\.[0-9]{1,2})?)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // Fallback regex to capture any number associated with the word "score" if primary fails
     private static readonly Regex FallbackScoreRegex = new(
         @"score[^\d]*([0-9]{1,3}(?:\.[0-9]{1,2})?)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // Initializes the AI client using the API key from the configuration providers
     public AiAnalysisService(IConfiguration configuration)
     {
         var apiKey = configuration["Gemini:ApiKey"]
@@ -30,7 +28,6 @@ public class AiAnalysisService : IAiAnalysisService
         _client = new Client(apiKey: apiKey);
     }
 
-    // Main entry: Builds the prompt and initiates the AI generation process
     public async Task<(decimal Score, string Feedback)> AnalyzeAsync(
         PdfDocumentData pdfData, JobAdvertisement jobAdvertisement)
     {
@@ -38,7 +35,6 @@ public class AiAnalysisService : IAiAnalysisService
         return await ExecuteWithRetryAsync(prompt, retryCount: 0);
     }
 
-    // Wraps the API call in a try-catch block to manage rate limits and retries
     private async Task<(decimal Score, string Feedback)> ExecuteWithRetryAsync(
         string prompt, int retryCount)
     {
@@ -55,45 +51,39 @@ public class AiAnalysisService : IAiAnalysisService
 
             return (score, feedback);
         }
-        // Logic for handling "Too Many Requests" (429) errors
+        // Retry for temporary 429s
         catch (Exception ex) when (Is429(ex) && IsRetryable(ex) && retryCount < MaxRetries)
         {
             await Task.Delay(3000);
             return await ExecuteWithRetryAsync(prompt, retryCount + 1);
         }
-        // Handles cases where the quota is completely exhausted
+        // Final handling for 429 (no silent fallback) — bubble up as typed exception
         catch (Exception ex) when (Is429(ex))
         {
-            return (0m, BuildQuotaMessage(ex));
+            throw new AiServiceUnavailableException(BuildQuotaMessage(ex), ex);
         }
-        // General fallback for any other service exceptions
+        // Any other unexpected AI client errors should also surface to the caller
         catch (Exception ex)
         {
-            return (0m, $"AI analysis currently unavailable: {ex.Message}");
+            throw new AiServiceUnavailableException($"AI analysis currently unavailable: {ex.Message}", ex);
         }
     }
 
-    // Checks if the exception message contains standard rate limit status codes
     private static bool Is429(Exception ex) =>
         ex.Message.Contains("429") || ex.Message.Contains("TooManyRequests");
 
-    // Identifies if the error is a temporary throttle vs a hard daily limit
     private static bool IsRetryable(Exception ex) =>
         !ex.Message.Contains("limit: 0");
 
-    // Returns a specific error string depending on the type of quota failure
     private static string BuildQuotaMessage(Exception ex)
     {
         if (ex.Message.Contains("limit: 0"))
-            return "AI analysis is unavailable: the Gemini free-tier quota for this " +
-                   "project is 0. Please enable billing at https://ai.dev/rate-limit " +
-                   "or wait for the daily quota to reset.";
+            return "AI analysis is unavailable: the Gemini free-tier quota for this project is 0. Please enable billing or wait for the daily quota to reset.";
 
-        return "AI analysis is temporarily unavailable due to rate limiting. " +
-               "The rule-based and keyword scores are still valid.";
+        return "AI analysis is temporarily unavailable due to rate limiting. Please try again shortly.";
     }
 
-    // Defines the full instructional context and output schema for the AI model
+    // BuildPrompt, ExtractScore, StripScoreLine unchanged...
     private static string BuildPrompt(string resumeText, string jobText) => $"""
     You are an expert Technical Recruiter and Career Coach with 20 years of experience in talent acquisition.
     Be direct and specific, but frame all feedback constructively — assume the candidate is motivated and capable of making improvements.
@@ -139,7 +129,6 @@ public class AiAnalysisService : IAiAnalysisService
     {resumeText}
     """;
 
-    // Parses the numeric match score from the top of the AI response text
     private static decimal ExtractScore(string text)
     {
         var match = ScoreRegex.Match(text);
@@ -147,7 +136,6 @@ public class AiAnalysisService : IAiAnalysisService
         if (!match.Success)
             match = FallbackScoreRegex.Match(text);
 
-        // Converts the regex group value to a decimal using invariant culture (dots for decimals)
         if (match.Success && decimal.TryParse(
                 match.Groups[1].Value,
                 System.Globalization.NumberStyles.Number,
@@ -160,7 +148,6 @@ public class AiAnalysisService : IAiAnalysisService
         return 0m;
     }
 
-    // Removes the "Match Score" line entirely so only the feedback/fixes remain
     private static string StripScoreLine(string text) =>
         Regex.Replace(
             text,

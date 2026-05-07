@@ -71,6 +71,10 @@ public class AnalysisController(
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (AiServiceUnavailableException ex)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = ex.Message });
+        }
     }
 
     // ── SSE streaming (emits each method result as it completes) ─────────────
@@ -134,6 +138,13 @@ public class AnalysisController(
             await Response.Body.FlushAsync();
         }
         catch (OperationCanceledException) { }
+        catch (AiServiceUnavailableException ex)
+        {
+            Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            var err = JsonSerializer.Serialize(new { error = ex.Message }, jsonOptions);
+            await Response.WriteAsync($"data: {err}\n\n");
+            await Response.Body.FlushAsync();
+        }
     }
 
     // New: Keyword debug endpoint
@@ -205,6 +216,10 @@ public class AnalysisController(
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (AiServiceUnavailableException ex)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = ex.Message });
+        }
     }
 
     [HttpPost("keyword")]
@@ -261,6 +276,10 @@ public class AnalysisController(
         {
             return BadRequest(new { error = ex.Message });
         }
+        catch (AiServiceUnavailableException ex)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = ex.Message });
+        }
     }
 
     [HttpPost("rules")]
@@ -316,6 +335,10 @@ public class AnalysisController(
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (AiServiceUnavailableException ex)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = ex.Message });
         }
     }
 }
