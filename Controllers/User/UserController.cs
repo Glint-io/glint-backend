@@ -11,14 +11,11 @@ namespace glint_backend.Controllers.User;
 [ApiController]
 [Route("user")]
 [Authorize]
-
-// User specific endpoints for managing resume history, statistics, and saved resumes.
 public class UserController(
     IUserService userService,
     IResumeService resumeService,
     IJobAdvertisementService jobAdvertisementService) : ControllerBase
 {
-    // Helper to get the current authenticated user's ID from claims.
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -34,15 +31,25 @@ public class UserController(
         return Ok(result);
     }
 
+    [HttpDelete("history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ClearHistory(
+        [FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
+    {
+        var deleted = await userService.ClearHistoryAsync(CurrentUserId, range);
+        return Ok(new { deleted });
+    }
+
     [HttpGet("statistics")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetStatistics([FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
+    public async Task<IActionResult> GetStatistics(
+        [FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
     {
         var result = await userService.GetStatisticsAsync(CurrentUserId, range);
         return Ok(result);
     }
 
-    // Upload new resume
     [HttpPost("resume")]
     [RequestSizeLimit(5 * 1024 * 1024)]
     [Consumes("multipart/form-data")]
@@ -84,7 +91,6 @@ public class UserController(
         return File(resume.FileData, "application/pdf");
     }
 
-    // Delete a saved resume by ID. Only the owner can delete their resume.
     [HttpDelete("resume/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -110,7 +116,6 @@ public class UserController(
         }
     }
 
-    // Get all job advertisements saved by the current user
     [HttpGet("job-advertisement")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetJobAdvertisements()
@@ -119,11 +124,11 @@ public class UserController(
         return Ok(result);
     }
 
-    // Create or retrieve existing job advertisement with deduplication
     [HttpPost("job-advertisement")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateJobAdvertisement([FromBody] CreateJobAdvertisementRequest request)
+    public async Task<IActionResult> CreateJobAdvertisement(
+        [FromBody] CreateJobAdvertisementRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.RawText))
             return BadRequest(new { error = "Job advertisement text cannot be empty." });
@@ -168,7 +173,7 @@ public class UserController(
         try
         {
             await userService.DeleteOwnAccountAsync(CurrentUserId, request.Password);
-            return NoContent(); // 204 — client must discard access + refresh tokens
+            return NoContent();
         }
         catch (UnauthorizedAccessException ex)
         {
