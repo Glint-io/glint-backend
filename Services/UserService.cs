@@ -1,10 +1,14 @@
 using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
+using glint_backend.Exceptions;
 using glint_backend.Interfaces;
+using glint_backend.Repositories.Interfaces;
 
 namespace glint_backend.Services;
 
-public class UserService(IAnalysisRepository analysisRepo) : IUserService
+public class UserService(
+    IAnalysisRepository analysisRepo,
+    IUserRepository userRepo) : IUserService
 {
     private static DateTime? GetCreatedAtFrom(AnalysisHistoryRange range) => range switch
     {
@@ -20,11 +24,9 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
     {
         var createdAtFrom = GetCreatedAtFrom(request.Range);
 
-        // get paged analysis history
         var (items, total) = await analysisRepo.GetPagedByUserIdAsync(
             userId, request.Page, request.PageSize, createdAtFrom);
 
-        // map the items so that we only return the necessary fields to the client
         var mapped = items.Select(a => new AnalysisHistoryItemResponse
         {
             Id = a.Id,
@@ -33,8 +35,8 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             Status = a.Status.ToString(),
             ResumeFileName = a.Resume?.FileName ?? string.Empty,
             JobAdSnippet = a.JobAdvertisement?.RawText.Length > 200
-                ? a.JobAdvertisement.RawText[..200] + "…"
-                : a.JobAdvertisement?.RawText ?? string.Empty,
+                                 ? a.JobAdvertisement.RawText[..200] + "…"
+                                 : a.JobAdvertisement?.RawText ?? string.Empty,
             Results = a.Results.Select(r => new AnalysisResultResponse
             {
                 Id = r.Id,
@@ -45,7 +47,6 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             }).ToList()
         }).ToList();
 
-        // Return the paged response with the mapped items, current page, page size, and total count for pagination on the client side.
         return new PagedResponse<AnalysisHistoryItemResponse>
         {
             Items = mapped,
@@ -55,19 +56,16 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
         };
     }
 
-    // get overall statistics
     public async Task<StatisticsResponse> GetStatisticsAsync(Guid userId, AnalysisHistoryRange range)
     {
         var createdAtFrom = GetCreatedAtFrom(range);
         var results = (await analysisRepo.GetResultsByUserIdAsync(userId, createdAtFrom)).ToList();
 
-        // Count distinct analyses that belong to this user
         var totalAnalyses = results
             .Select(r => r.AnalysisId)
             .Distinct()
             .Count();
 
-        // Average score + count grouped by method
         var byMethod = results
             .GroupBy(r => r.Method)
             .Select(g => new MethodStatistic
@@ -81,7 +79,6 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             })
             .ToList();
 
-        // Score over time - one data point per completed result
         var scoreOverTime = results
             .Where(r => r.Score.HasValue && r.CompletedAt.HasValue)
             .OrderBy(r => r.CompletedAt)
@@ -99,5 +96,19 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             ByMethod = byMethod,
             ScoreOverTime = scoreOverTime
         };
+    }
+
+    public async Task DeleteOwnAccountAsync(Guid userId, string password)
+    {
+        // 1. Load the user — 404 if not found
+        var user = await userRepo.GetByUuidAsync(userId)
+            ?? throw new NotFoundException("User not found.");
+
+        // 2. Verify password before touching any data
+        if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+            throw new UnauthorizedAccessException("Incorrect password.");
+
+        // 3/ Delete all analyses (cascades to results), resumes, job ads, tokens, OTCs, etc. via FK cascade rules
+        await userRepo.DeleteAsync(userId);
     }
 }

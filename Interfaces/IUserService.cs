@@ -3,7 +3,6 @@ using glint_backend.DTOs.Responses;
 
 namespace glint_backend.Interfaces;
 
-
 // interface for user-specific operations
 public interface IUserService
 {
@@ -12,4 +11,6 @@ public interface IUserService
         Guid userId, AnalysisHistoryRequest request);
 
     Task<StatisticsResponse> GetStatisticsAsync(Guid userId, AnalysisHistoryRange range);
+
+    Task DeleteOwnAccountAsync(Guid userId, string password);
 }

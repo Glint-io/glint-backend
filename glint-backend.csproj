@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>glint_backend</RootNamespace>
+    <UserSecretsId>86bf408e-13ec-44ab-ab5e-62467477f746</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
