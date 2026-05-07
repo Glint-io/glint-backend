@@ -15,5 +15,6 @@ public interface IAnalysisRepository
     Task UpdateAnalysisAsync(Analysis analysis);
     Task DeleteByResumeIdAsync(Guid resumeId);
     Task NullifyResumeIdAsync(Guid resumeId);
+    Task<int> DeleteByUserIdAsync(Guid userId, DateTime? createdAtFrom = null);
 
 }

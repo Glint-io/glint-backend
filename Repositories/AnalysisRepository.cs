@@ -89,4 +89,20 @@ public class AnalysisRepository(AppDBContext db) : IAnalysisRepository
             .Where(a => a.ResumeId == resumeId)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.ResumeId, (Guid?)null));
     }
+
+    public async Task<int> DeleteByUserIdAsync(Guid userId, DateTime? createdAtFrom = null)
+    {
+        var analyses = await db.Analyses
+            .Where(a => a.UserId == userId)
+            .Where(a => createdAtFrom == null || a.CreatedAt >= createdAtFrom)
+            .Include(a => a.Results)
+            .ToListAsync();
+
+        if (analyses.Count == 0)
+            return 0;
+
+        db.Analyses.RemoveRange(analyses);
+        await db.SaveChangesAsync();
+        return analyses.Count;
+    }
 }

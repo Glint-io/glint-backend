@@ -98,17 +98,20 @@ public class UserService(
         };
     }
 
+    public async Task<int> ClearHistoryAsync(Guid userId, AnalysisHistoryRange range)
+    {
+        var createdAtFrom = GetCreatedAtFrom(range);
+        return await analysisRepo.DeleteByUserIdAsync(userId, createdAtFrom);
+    }
+
     public async Task DeleteOwnAccountAsync(Guid userId, string password)
     {
-        // 1. Load the user — 404 if not found
         var user = await userRepo.GetByUuidAsync(userId)
             ?? throw new NotFoundException("User not found.");
 
-        // 2. Verify password before touching any data
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             throw new UnauthorizedAccessException("Incorrect password.");
 
-        // 3/ Delete all analyses (cascades to results), resumes, job ads, tokens, OTCs, etc. via FK cascade rules
         await userRepo.DeleteAsync(userId);
     }
 }
