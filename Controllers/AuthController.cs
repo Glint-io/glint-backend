@@ -1,6 +1,7 @@
 ﻿using glint_backend.DTOs.Auth;
 using glint_backend.Services;
 using glint_backend.Services.Interfaces;
+using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 
 namespace glint_backend.Controllers
@@ -19,7 +20,7 @@ namespace glint_backend.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+        public async Task<IActionResult> Register([FromBody] DTOs.Auth.RegisterRequest request)
         {
             try
             {
@@ -42,7 +43,7 @@ namespace glint_backend.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] DTOs.Auth.LoginRequest request)
         {
             try
             {
@@ -140,6 +141,44 @@ namespace glint_backend.Controllers
             {
                 _logger.LogError(ex, "Unexpected error during resend-verification for {Email}", request.Email);
                 return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+            }
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] DTOs.Auth.ForgotPasswordRequest request)
+        {
+            try
+            {
+                await _authService.ForgotPasswordAsync(request);
+                return Ok(new { message = "If that address is registered, a reset code has been sent." });
+            }
+            catch (EmailDeliveryException ex)
+            {
+                return UnprocessableEntity(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during forgot-password for {Email}", request.Email);
+                return StatusCode(500, new { message = "An unexpected error occurred." });
+            }
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] DTOs.Auth.ResetPasswordRequest request)
+        {
+            try
+            {
+                await _authService.ResetPasswordAsync(request);
+                return Ok(new { message = "Password reset successfully. You can now sign in." });
+            }
+            catch (Exception ex) when (ex.Message == "Invalid or expired code")
+            {
+                return StatusCode(410, new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error during reset-password");
+                return StatusCode(500, new { message = "An unexpected error occurred." });
             }
         }
     }
