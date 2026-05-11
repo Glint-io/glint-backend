@@ -38,6 +38,7 @@ public class UserController(
         [FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
     {
         var deleted = await userService.ClearHistoryAsync(CurrentUserId, range);
+        // Return 200 OK with count since frontend expects the data for confirmation message
         return Ok(new { deleted });
     }
 
@@ -112,7 +113,7 @@ public class UserController(
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
+            return StatusCode(500, new { error = ex.Message });
         }
     }
 
@@ -140,7 +141,7 @@ public class UserController(
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
+            return StatusCode(500, new { error = ex.Message });
         }
     }
 
