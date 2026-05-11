@@ -103,7 +103,7 @@ namespace glint_backend.Services
             var claims = new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email)
+                new Claim("email", user.Email)
             };
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
