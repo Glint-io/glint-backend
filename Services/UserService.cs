@@ -80,11 +80,11 @@ public class UserService(
             .ToList();
 
         var scoreOverTime = results
-            .Where(r => r.Score.HasValue && r.CompletedAt.HasValue)
-            .OrderBy(r => r.CompletedAt)
+            .Where(r => r.Score.HasValue)
+            .OrderBy(r => r.Analysis.CreatedAt)
             .Select(r => new ScoreDataPoint
             {
-                Date = r.CompletedAt!.Value,
+                Date = r.Analysis.CreatedAt,
                 Score = r.Score!.Value,
                 Method = r.Method.ToString()
             })

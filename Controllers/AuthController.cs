@@ -25,20 +25,20 @@ namespace glint_backend.Controllers
             try
             {
                 await _authService.RegisterAsync(request);
-                return Ok(new { message = "Registration successful. Check your email for a verification code." });
+                return StatusCode(StatusCodes.Status201Created, new { message = "Registration successful. Check your email for a verification code." });
             }
             catch (EmailDeliveryException ex)
             {
-                return UnprocessableEntity(new { message = ex.Message });
+                return UnprocessableEntity(new { error = ex.Message });
             }
             catch (Exception ex) when (ex.Message == "Email already in use")
             {
-                return Conflict(new { message = ex.Message });
+                return Conflict(new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during registration for {Email}", request.Email);
-                return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
         }
 
@@ -52,16 +52,16 @@ namespace glint_backend.Controllers
             }
             catch (Exception ex) when (ex.Message == "Invalid email or password")
             {
-                return Unauthorized(new { message = ex.Message });
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex) when (ex.Message.StartsWith("Email not verified"))
             {
-                return StatusCode(403, new { message = ex.Message });
+                return StatusCode(403, new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during login for {Email}", request.Email);
-                return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
         }
 
@@ -75,12 +75,12 @@ namespace glint_backend.Controllers
             }
             catch (Exception ex) when (ex.Message == "Invalid or expired code")
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during OTC login");
-                return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
         }
 
@@ -96,12 +96,12 @@ namespace glint_backend.Controllers
             {
                 // 410 Gone signals to the frontend that the code existed but is no longer valid,
                 // which triggers the manual re-entry fallback in VerifyEmailPage.tsx.
-                return StatusCode(410, new { message = ex.Message });
+                return StatusCode(410, new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during email verification");
-                return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
         }
 
@@ -115,12 +115,12 @@ namespace glint_backend.Controllers
             }
             catch (Exception ex) when (ex.Message == "Invalid or expired refresh token")
             {
-                return Unauthorized(new { message = ex.Message });
+                return Unauthorized(new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during token refresh");
-                return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
         }
 
@@ -135,12 +135,12 @@ namespace glint_backend.Controllers
             }
             catch (EmailDeliveryException ex)
             {
-                return UnprocessableEntity(new { message = ex.Message });
+                return UnprocessableEntity(new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during resend-verification for {Email}", request.Email);
-                return StatusCode(500, new { message = "An unexpected error occurred. Please try again." });
+                return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
         }
 
@@ -154,12 +154,12 @@ namespace glint_backend.Controllers
             }
             catch (EmailDeliveryException ex)
             {
-                return UnprocessableEntity(new { message = ex.Message });
+                return UnprocessableEntity(new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during forgot-password for {Email}", request.Email);
-                return StatusCode(500, new { message = "An unexpected error occurred." });
+                return StatusCode(500, new { error = "An unexpected error occurred." });
             }
         }
 
@@ -173,12 +173,12 @@ namespace glint_backend.Controllers
             }
             catch (Exception ex) when (ex.Message == "Invalid or expired code")
             {
-                return StatusCode(410, new { message = ex.Message });
+                return StatusCode(410, new { error = ex.Message });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error during reset-password");
-                return StatusCode(500, new { message = "An unexpected error occurred." });
+                return StatusCode(500, new { error = "An unexpected error occurred." });
             }
         }
     }
