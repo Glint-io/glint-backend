@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using static Org.BouncyCastle.Crypto.Engines.SM2Engine;
 
 namespace glint_backend.Services
 {
@@ -56,15 +55,25 @@ namespace glint_backend.Services
 
             await _otcs.CreateAsync(otc);
 
-            var verifyUrl = $"{_config["Frontend:BaseUrl"]}/auth/verify-email?code={otc.Code}";
-            var html = EmailService.BuildVerificationEmail(verifyUrl, otc.Code.ToString());
-            await _email.SendAsync(user.Email, "Verify your Glint email", html);
+            var (subject, html, plain) = EmailTemplates.BuildVerificationEmail(
+                otc.Code,
+                _config["Frontend:BaseUrl"]!
+            );
+
+            try
+            {
+                await _email.SendAsync(user.Email, subject, html, plain);
+            }
+            catch (EmailDeliveryException)
+            {
+                await _otcs.DeleteAsync(otc.Id);
+                await _users.DeleteAsync(user.Id);
+                throw;
+            }
         }
 
-        private string GenerateOtcCode()
-        {
-            return Random.Shared.Next(100000, 999999).ToString();
-        }
+        private static string GenerateOtcCode() =>
+            Random.Shared.Next(100_000, 1_000_000).ToString();
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
         {
@@ -75,7 +84,6 @@ namespace glint_backend.Services
                 throw new Exception("Email not verified, please check your spam and inbox for verification code");
 
             var accessToken = GenerateJwt(user);
-
             var refreshToken = new RefreshToken
             {
                 Id = Guid.NewGuid(),
@@ -85,27 +93,18 @@ namespace glint_backend.Services
             };
 
             await _tokens.CreateAsync(refreshToken);
-
-            return new AuthResponse
-            {
-                AccessToken = accessToken,
-                RefreshToken = refreshToken.Token
-            };
+            return new AuthResponse { AccessToken = accessToken, RefreshToken = refreshToken.Token };
         }
 
         private string GenerateJwt(User user)
         {
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
-
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
             var claims = new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email)
+                new Claim("email", user.Email)
             };
-
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
@@ -113,7 +112,6 @@ namespace glint_backend.Services
                 expires: DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:ExpiryMinutes"]!)),
                 signingCredentials: credentials
             );
-
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
@@ -125,12 +123,10 @@ namespace glint_backend.Services
 
             await _otcs.MarkUsedAsync(otc);
 
-            var user = await _users.GetByUuidAsync(otc.UserId);
-            if (user is null)
-                throw new Exception("User not found");
+            var user = await _users.GetByUuidAsync(otc.UserId)
+                ?? throw new Exception("User not found");
 
             var accessToken = GenerateJwt(user);
-
             var refreshToken = new RefreshToken
             {
                 Id = Guid.NewGuid(),
@@ -140,12 +136,7 @@ namespace glint_backend.Services
             };
 
             await _tokens.CreateAsync(refreshToken);
-
-            return new AuthResponse
-            {
-                AccessToken = accessToken,
-                RefreshToken = refreshToken.Token
-            };
+            return new AuthResponse { AccessToken = accessToken, RefreshToken = refreshToken.Token };
         }
 
         public async Task VerifyEmailAsync(VerifyEmailRequest request)
@@ -156,9 +147,8 @@ namespace glint_backend.Services
 
             await _otcs.MarkUsedAsync(otc);
 
-            var user = await _users.GetByUuidAsync(otc.UserId);
-            if (user is null)
-                throw new Exception("User not found");
+            var user = await _users.GetByUuidAsync(otc.UserId)
+                ?? throw new Exception("User not found");
 
             user.IsEmailVerified = true;
             await _users.UpdateAsync(user);
@@ -172,12 +162,10 @@ namespace glint_backend.Services
 
             await _tokens.RevokeAsync(existing.Id);
 
-            var user = await _users.GetByUuidAsync(existing.UserId);
-            if (user is null)
-                throw new Exception("User not found");
+            var user = await _users.GetByUuidAsync(existing.UserId)
+                ?? throw new Exception("User not found");
 
             var accessToken = GenerateJwt(user);
-
             var newRefreshToken = new RefreshToken
             {
                 Id = Guid.NewGuid(),
@@ -187,12 +175,73 @@ namespace glint_backend.Services
             };
 
             await _tokens.CreateAsync(newRefreshToken);
+            return new AuthResponse { AccessToken = accessToken, RefreshToken = newRefreshToken.Token };
+        }
 
-            return new AuthResponse
+        public async Task ResendVerificationAsync(ResendVerificationRequest request)
+        {
+            var user = await _users.GetByEmailAsync(request.Email);
+            if (user is null || user.IsEmailVerified) return;
+
+            await _otcs.InvalidateAllAsync(user.Id, OneTimeCodeType.EmailVerification);
+
+            var otc = new OneTimeCode
             {
-                AccessToken = accessToken,
-                RefreshToken = newRefreshToken.Token
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Code = GenerateOtcCode(),
+                Type = OneTimeCodeType.EmailVerification,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                IsUsed = false
             };
+
+            await _otcs.CreateAsync(otc);
+
+            var (subject, html, plain) = EmailTemplates.BuildVerificationEmail(
+                otc.Code, _config["Frontend:BaseUrl"]!);
+
+            await _email.SendAsync(user.Email, subject, html, plain);
+        }
+
+        public async Task ForgotPasswordAsync(ForgotPasswordRequest request)
+        {
+            var user = await _users.GetByEmailAsync(request.Email);
+            // Always return silently — don't reveal whether the email exists
+            if (user is null || !user.IsEmailVerified) return;
+
+            await _otcs.InvalidateAllAsync(user.Id, OneTimeCodeType.PasswordReset);
+
+            var otc = new OneTimeCode
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Code = GenerateOtcCode(),
+                Type = OneTimeCodeType.PasswordReset,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                IsUsed = false
+            };
+
+            await _otcs.CreateAsync(otc);
+
+            var (subject, html, plain) = EmailTemplates.BuildPasswordResetEmail(
+                otc.Code, _config["Frontend:BaseUrl"]!);
+
+            await _email.SendAsync(user.Email, subject, html, plain);
+        }
+
+        public async Task ResetPasswordAsync(ResetPasswordRequest request)
+        {
+            var otc = await _otcs.GetByCodeAsync(request.Code, OneTimeCodeType.PasswordReset);
+            if (otc is null || otc.IsUsed || otc.ExpiresAt < DateTime.UtcNow)
+                throw new Exception("Invalid or expired code");
+
+            await _otcs.MarkUsedAsync(otc);
+
+            var user = await _users.GetByUuidAsync(otc.UserId)
+                ?? throw new Exception("User not found");
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _users.UpdateAsync(user);
         }
     }
 }

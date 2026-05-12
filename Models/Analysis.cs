@@ -18,14 +18,13 @@ public class Analysis
     [Required]
     public Guid UserId { get; set; }
 
-    [Required]
-    public Guid ResumeId { get; set; }
+    public Guid? ResumeId { get; set; }
 
     [Required]
     public Guid JobAdvertisementId { get; set; }
 
     [MaxLength(100)]
-    public string? Label { get; set; }
+    public string? JobTitle { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -37,7 +36,7 @@ public class Analysis
     public User User { get; set; } = null!;
 
     [ForeignKey(nameof(ResumeId))]
-    public Resume Resume { get; set; } = null!;
+    public Resume? Resume { get; set; } = null!;
 
     [ForeignKey(nameof(JobAdvertisementId))]
     public JobAdvertisement JobAdvertisement { get; set; } = null!;

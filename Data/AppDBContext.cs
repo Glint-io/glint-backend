@@ -32,6 +32,12 @@ namespace glint_backend.Data
                 .WithMany(j => j.Analyses)
                 .HasForeignKey(a => a.JobAdvertisementId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Models.AnalysisResult>()
+                .HasOne(ar => ar.JobAdvertisement)
+                .WithMany()
+                .HasForeignKey(ar => ar.JobAdvertisementId)
+                .OnDelete(DeleteBehavior.NoAction);
         }
 
     }
