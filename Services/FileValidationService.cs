@@ -80,7 +80,7 @@ public class FileValidationService : IFileValidationService
 
     private static string? ScanForMaliciousContent(byte[] bytes)
     {
-        // Decode as Latin-1 so every byte maps to exactly one char —
+        // Decode as Latin-1 so every byte maps to exactly one char -
         // avoids losing data that UTF-8 would reject.
         var content = System.Text.Encoding.Latin1.GetString(bytes);
 

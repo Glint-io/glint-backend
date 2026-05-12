@@ -27,8 +27,14 @@ public class AnalysisResult
     public string? Feedback { get; set; }
 
     public DateTime? CompletedAt { get; set; }
+    public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public Guid? JobAdvertisementId { get; set; }
 
     // Navigation
     [ForeignKey(nameof(AnalysisId))]
     public Analysis Analysis { get; set; } = null!;
+
+    [ForeignKey(nameof(JobAdvertisementId))]
+    public JobAdvertisement? JobAdvertisement { get; set; }
 }

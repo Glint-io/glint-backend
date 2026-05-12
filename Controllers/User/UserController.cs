@@ -1,4 +1,4 @@
-﻿using glint_backend.DTOs.Requests;
+using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
 using glint_backend.Exceptions;
 using glint_backend.Interfaces;
@@ -11,54 +11,60 @@ namespace glint_backend.Controllers.User;
 [ApiController]
 [Route("user")]
 [Authorize]
-
-// User spesific endpoints for managing resume history, statistics, and saved resumes.
 public class UserController(
     IUserService userService,
-    IResumeService resumeService) : ControllerBase
+    IResumeService resumeService,
+    IJobAdvertisementService jobAdvertisementService) : ControllerBase
 {
-    // Helper to get the current authenticated user's ID from claims. This is used in all endpoints to ensure actions are performed on the correct user's data.
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-    
+
     [HttpGet("history")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-
-    public async Task<IActionResult> GetHistory([FromQuery] PaginationRequest pagination)
+    public async Task<IActionResult> GetHistory([FromQuery] AnalysisHistoryRequest request)
     {
-        // Validate pagination parameters. If invalid, return 400 with details.
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var result = await userService.GetHistoryAsync(CurrentUserId, pagination);
+        var result = await userService.GetHistoryAsync(CurrentUserId, request);
         return Ok(result);
     }
 
-    // User's overall statistics endpoint, consiting of avg score, total analyses, and trends over time.
+    [HttpDelete("history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ClearHistory(
+        [FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
+    {
+        var deleted = await userService.ClearHistoryAsync(CurrentUserId, range);
+        // Return 200 OK with count since frontend expects the data for confirmation message
+        return Ok(new { deleted });
+    }
+
     [HttpGet("statistics")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetStatistics()
+    public async Task<IActionResult> GetStatistics(
+        [FromQuery] AnalysisHistoryRange range = AnalysisHistoryRange.All)
     {
-        var result = await userService.GetStatisticsAsync(CurrentUserId);
+        var result = await userService.GetStatisticsAsync(CurrentUserId, range);
         return Ok(result);
     }
 
-    // Upload new resume
     [HttpPost("resume")]
     [RequestSizeLimit(5 * 1024 * 1024)]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadResume(IFormFile file)
     {
-        // Validate that a file was provided. If not, return 400 with an error message.
         if (file is null)
             return BadRequest(new { error = "No file provided." });
-        // Validate that the file is a PDF and does not exceed size limits. If invalid, return 400 with details.
+
         try
         {
             var result = await resumeService.UploadAsync(CurrentUserId, file);
-            return CreatedAtAction(null, new { id = result.ResumeId }, result);
+            return StatusCode(StatusCodes.Status201Created, result);
         }
         catch (InvalidOperationException ex)
         {
@@ -74,8 +80,18 @@ public class UserController(
         return Ok(result);
     }
 
+    [HttpGet("resume/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResume(Guid id)
+    {
+        var resume = await resumeService.GetByIdAsync(CurrentUserId, id);
+        if (resume is null)
+            return NotFound(new { error = "Resume not found." });
 
-    // Delete a saved resume by ID. Only the owner can delete their resume. If the resume does not exist, return 404. If the resume is currently in use for an analysis, return 409 Conflict.
+        return File(resume.FileData, "application/pdf");
+    }
+
     [HttpDelete("resume/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -94,6 +110,79 @@ public class UserController(
         catch (ConflictException ex)
         {
             return Conflict(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("job-advertisement")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetJobAdvertisements()
+    {
+        var result = await jobAdvertisementService.GetUserJobAdvertisementsAsync(CurrentUserId);
+        return Ok(result);
+    }
+
+    [HttpPost("job-advertisement")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateJobAdvertisement(
+        [FromBody] CreateJobAdvertisementRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RawText))
+            return BadRequest(new { error = "Job advertisement text cannot be empty." });
+
+        try
+        {
+            var result = await jobAdvertisementService.CreateOrGetAsync(CurrentUserId, request);
+            return StatusCode(StatusCodes.Status201Created, result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete("job-advertisement/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteJobAdvertisement(Guid id)
+    {
+        try
+        {
+            await jobAdvertisementService.DeleteAsync(CurrentUserId, id);
+            return NoContent();
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpDelete("account")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteAccount([FromBody] DeleteAccountRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            await userService.DeleteOwnAccountAsync(CurrentUserId, request.Password);
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
         }
     }
 }

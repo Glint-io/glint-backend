@@ -1,29 +1,42 @@
 using glint_backend.DTOs.Requests;
 using glint_backend.DTOs.Responses;
+using glint_backend.Exceptions;
 using glint_backend.Interfaces;
+using glint_backend.Repositories.Interfaces;
 
 namespace glint_backend.Services;
 
-public class UserService(IAnalysisRepository analysisRepo) : IUserService
+public class UserService(
+    IAnalysisRepository analysisRepo,
+    IUserRepository userRepo) : IUserService
 {
-    public async Task<PagedResponse<AnalysisHistoryItemResponse>> GetHistoryAsync(
-        Guid userId, PaginationRequest pagination)
+    private static DateTime? GetCreatedAtFrom(AnalysisHistoryRange range) => range switch
     {
-        // get paged analysis history
-        var (items, total) = await analysisRepo.GetPagedByUserIdAsync(
-            userId, pagination.Page, pagination.PageSize);
+        AnalysisHistoryRange.Today => DateTime.UtcNow.Date,
+        AnalysisHistoryRange.Last7Days => DateTime.UtcNow.AddDays(-7),
+        AnalysisHistoryRange.Last30Days => DateTime.UtcNow.AddDays(-30),
+        AnalysisHistoryRange.Last365Days => DateTime.UtcNow.AddDays(-365),
+        _ => null
+    };
 
-        // map the items so that we only return the necessary fields to the client
+    public async Task<PagedResponse<AnalysisHistoryItemResponse>> GetHistoryAsync(
+        Guid userId, AnalysisHistoryRequest request)
+    {
+        var createdAtFrom = GetCreatedAtFrom(request.Range);
+
+        var (items, total) = await analysisRepo.GetPagedByUserIdAsync(
+            userId, request.Page, request.PageSize, createdAtFrom);
+
         var mapped = items.Select(a => new AnalysisHistoryItemResponse
         {
             Id = a.Id,
-            Label = a.Label,
+            JobTitle = a.JobTitle,
             CreatedAt = a.CreatedAt,
             Status = a.Status.ToString(),
             ResumeFileName = a.Resume?.FileName ?? string.Empty,
             JobAdSnippet = a.JobAdvertisement?.RawText.Length > 200
-                ? a.JobAdvertisement.RawText[..200] + "…"
-                : a.JobAdvertisement?.RawText ?? string.Empty,
+                                 ? a.JobAdvertisement.RawText[..200] + "â€¦"
+                                 : a.JobAdvertisement?.RawText ?? string.Empty,
             Results = a.Results.Select(r => new AnalysisResultResponse
             {
                 Id = r.Id,
@@ -34,28 +47,25 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             }).ToList()
         }).ToList();
 
-        // Return the paged response with the mapped items, current page, page size, and total count for pagination on the client side.
         return new PagedResponse<AnalysisHistoryItemResponse>
         {
             Items = mapped,
-            Page = pagination.Page,
-            PageSize = pagination.PageSize,
+            Page = request.Page,
+            PageSize = request.PageSize,
             TotalCount = total
         };
     }
 
-    // get overall statistics
-    public async Task<StatisticsResponse> GetStatisticsAsync(Guid userId)
+    public async Task<StatisticsResponse> GetStatisticsAsync(Guid userId, AnalysisHistoryRange range)
     {
-        var results = (await analysisRepo.GetResultsByUserIdAsync(userId)).ToList();
+        var createdAtFrom = GetCreatedAtFrom(range);
+        var results = (await analysisRepo.GetResultsByUserIdAsync(userId, createdAtFrom)).ToList();
 
-        // Count distinct analyses that belong to this user
         var totalAnalyses = results
             .Select(r => r.AnalysisId)
             .Distinct()
             .Count();
 
-        // Average score + count grouped by method
         var byMethod = results
             .GroupBy(r => r.Method)
             .Select(g => new MethodStatistic
@@ -69,13 +79,12 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             })
             .ToList();
 
-        // Score over time — one data point per completed result
         var scoreOverTime = results
-            .Where(r => r.Score.HasValue && r.CompletedAt.HasValue)
-            .OrderBy(r => r.CompletedAt)
+            .Where(r => r.Score.HasValue)
+            .OrderBy(r => r.Analysis.CreatedAt)
             .Select(r => new ScoreDataPoint
             {
-                Date = r.CompletedAt!.Value,
+                Date = r.Analysis.CreatedAt,
                 Score = r.Score!.Value,
                 Method = r.Method.ToString()
             })
@@ -87,5 +96,22 @@ public class UserService(IAnalysisRepository analysisRepo) : IUserService
             ByMethod = byMethod,
             ScoreOverTime = scoreOverTime
         };
+    }
+
+    public async Task<int> ClearHistoryAsync(Guid userId, AnalysisHistoryRange range)
+    {
+        var createdAtFrom = GetCreatedAtFrom(range);
+        return await analysisRepo.DeleteByUserIdAsync(userId, createdAtFrom);
+    }
+
+    public async Task DeleteOwnAccountAsync(Guid userId, string password)
+    {
+        var user = await userRepo.GetByUuidAsync(userId)
+            ?? throw new NotFoundException("User not found.");
+
+        if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+            throw new UnauthorizedAccessException("Incorrect password.");
+
+        await userRepo.DeleteAsync(userId);
     }
 }

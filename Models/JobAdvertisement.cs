@@ -11,10 +11,15 @@ public class JobAdvertisement
     [Required]
     public Guid UserId { get; set; }
 
+    [MaxLength(200)]
+    public string? Title { get; set; }
+
     [Required]
     public string RawText { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public bool IsArchived { get; set; }
 
     // Navigation
     [ForeignKey(nameof(UserId))]

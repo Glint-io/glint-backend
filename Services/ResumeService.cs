@@ -8,9 +8,10 @@ namespace glint_backend.Services;
 
 public class ResumeService(
     IResumeRepository resumeRepo,
-    IFileValidationService fileValidator) : IResumeService
+    IFileValidationService fileValidator,
+    IAnalysisRepository analysisRepo) : IResumeService
 {
-    private const int MaxResumesPerUser = 3;
+    private const int MaxResumesPerUser = 5;
 
     public async Task<UploadResumeResponse> UploadAsync(Guid userId, IFormFile file)
     {
@@ -58,20 +59,25 @@ public class ResumeService(
             UploadedAt = r.UploadedAt
         }).ToList();
     }
+
+    public async Task<Resume?> GetByIdAsync(Guid userId, Guid resumeId)
+    {
+        var resume = await resumeRepo.GetByIdAsync(resumeId);
+        if (resume is null || resume.UserId != userId)
+            return null;
+
+        return resume;
+    }
+
     public async Task DeleteAsync(Guid userId, Guid resumeId)
     {
         var resume = await resumeRepo.GetByIdAsync(resumeId)
             ?? throw new NotFoundException("Resume not found.");
 
-        // Ownership check
         if (resume.UserId != userId)
             throw new NotFoundException("Resume not found.");
 
-        // Guard: block deletion if the resume is linked to any analyses
-        if (resume.Analyses.Count > 0)
-            throw new ConflictException(
-                "This resume is linked to one or more analyses and cannot be deleted.");
-
+        await analysisRepo.NullifyResumeIdAsync(resumeId);
         await resumeRepo.DeleteAsync(resume);
     }
 }
