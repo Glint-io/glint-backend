@@ -1,5 +1,4 @@
 ﻿using glint_backend.Data;
-// ── Required usings ───────────────────────────────────────────────────────────
 using glint_backend.Interfaces;
 using glint_backend.Repositories;
 using glint_backend.Repositories.Interfaces;
@@ -12,8 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Net.Http.Headers;
 using System.Text;
-using Microsoft.Extensions.Configuration; // added for AddUserSecrets
-using Microsoft.Extensions.Configuration.UserSecrets; // added for AddUserSecrets<T>()
 
 namespace glint_backend
 {
@@ -23,18 +20,14 @@ namespace glint_backend
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Load user secrets in development so sensitive keys placed in user-secrets work
             if (builder.Environment.IsDevelopment())
             {
-                // optional: true so app still runs if user-secrets are not configured on this machine
                 builder.Configuration.AddUserSecrets<Program>(optional: true);
             }
 
             // ── Database ──────────────────────────────────────────────────────────
             builder.Services.AddDbContext<AppDBContext>(options =>
-            {
-                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-            });
+                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             // ── Services & Repositories ───────────────────────────────────────────
             builder.Services.AddScoped<IEmailService, EmailService>();
@@ -114,6 +107,7 @@ namespace glint_backend
                 });
             });
 
+            // ── Email (Resend) ────────────────────────────────────────────────────
             var resendApiKey = builder.Configuration["Resend:ApiKey"];
             if (!string.IsNullOrWhiteSpace(resendApiKey))
             {
@@ -125,43 +119,42 @@ namespace glint_backend
             }
             else
             {
-                // Register a named client without auth header so code can still request it in tests/dev
                 builder.Services.AddHttpClient("Resend");
             }
 
-            // ── Dependency Injection: Repositories & Services ─────────────────────
-            // Repositories
+            // ── Repositories ──────────────────────────────────────────────────────
             builder.Services.AddScoped<IResumeRepository, ResumeRepository>();
             builder.Services.AddScoped<IAnalysisRepository, AnalysisRepository>();
             builder.Services.AddScoped<IJobAdvertisementRepository, JobAdvertisementRepository>();
 
-            // Analysis sub-services
+            // ── Analysis sub-services ─────────────────────────────────────────────
             builder.Services.AddScoped<IAiAnalysisService, AiAnalysisService>();
             builder.Services.AddScoped<IRuleBasedAnalysisService, RuleBasedAnalysisService>();
             builder.Services.AddScoped<IKeywordAnalysisService, KeywordAnalysisService>();
 
-            // Services
+            // ── Services ─────────────────────────────────────────────────────────
             builder.Services.AddScoped<IFileValidationService, FileValidationService>();
             builder.Services.AddScoped<IResumeService, ResumeService>();
             builder.Services.AddScoped<IJobAdvertisementService, JobAdvertisementService>();
             builder.Services.AddScoped<IAnalysisService, AnalysisService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IPdfExtractionService, PdfExtractionService>();
-            builder.Services.AddScoped<IJobAdvertisementService, JobAdvertisementService>();
 
-            // ── Build App ─────────────────────────────────────────────────────────
+            // ── Build ─────────────────────────────────────────────────────────────
             var app = builder.Build();
+
+            // Run migrations automatically on startup (safe for Railway deployments)
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+                await db.Database.MigrateAsync();
+            }
 
             if (app.Environment.IsDevelopment())
             {
-                using var scope = app.Services.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDBContext>();
-                // await DbSeeder.SeedAsync(db);
                 app.UseSwagger();
                 app.UseSwaggerUI(options =>
-                {
-                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Glint API v1");
-                });
+                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Glint API v1"));
             }
 
             app.UseExceptionHandler(err => err.Run(async ctx =>
@@ -172,14 +165,15 @@ namespace glint_backend
                 await ctx.Response.WriteAsJsonAsync(new { error = error?.Error.Message });
             }));
 
-            // ── Middleware pipeline ───────────────────────────────────────────────
             app.UseHttpsRedirection();
             app.UseCors("AllowFrontend");
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
 
-            app.Run();
+            // ── Bind to Railway's PORT ────────────────────────────────────────────
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+            app.Run($"http://0.0.0.0:{port}");
         }
     }
 }
