@@ -82,6 +82,13 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
                 contents: prompt);
 
             var raw = response.Text ?? string.Empty;
+            
+            // Check if the response contains error indicators instead of JSON
+            if (DetectErrorInResponse(raw, out var errorMessage))
+            {
+                throw new AiServiceUnavailableException(errorMessage);
+            }
+
             var json = ExtractJson(raw);
             var result = JsonSerializer.Deserialize<RuleEvaluationResponse>(json, JsonOpts);
             return result?.Checks ?? [];
@@ -92,7 +99,7 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
             await Task.Delay(3000);
             return await EvaluateRulesAsync(jobText, resumeText, retryCount + 1);
         }
-        // For rate-limits/quota we now surface an explicit exception — do not return a fake success
+        // For rate-limits/quota we now surface an explicit exception ï¿½ do not return a fake success
         catch (Exception ex) when (Is429(ex))
         {
             throw new AiServiceUnavailableException(
@@ -100,19 +107,11 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
                     ? "Rule-based AI quota exhausted for this project."
                     : "Rule-based AI temporarily at capacity. Please try again shortly.", ex);
         }
-        // Catch-all for unexpected parsing or connection errors
+        // Catch-all for unexpected parsing or connection errors â€“ throw instead of faking success
         catch (Exception ex)
         {
-            return
-            [
-                new RuleCheckResult
-                {
-                    Rule = "Rule evaluation failed",
-                    Passed = false,
-                    Weight = 0,
-                    Detail = ex.Message
-                }
-            ];
+            throw new AiServiceUnavailableException(
+                $"Rule-based analysis unavailable: {ex.Message}", ex);
         }
     }
 
@@ -218,4 +217,61 @@ public class RuleBasedAnalysisService : IRuleBasedAnalysisService
     // Determines if a retry is worth attempting (skips if the hard daily limit is hit)
     private static bool IsRetryable(Exception ex) =>
         !ex.Message.Contains("limit: 0");
+
+    /// <summary>
+    /// Detects if the response text contains error indicators rather than valid JSON rules.
+    /// Common error patterns:
+    ///   - API key issues (\"API key\", \"leaked\", \"invalid\", \"unauthorized\")
+    ///   - Quota/rate limit errors (\"quota\", \"limit\", \"exhausted\", \"too many\")
+    ///   - Service errors (\"error\", \"failed\", \"unavailable\", \"exception\")
+    ///   - Malformed responses that don't contain JSON
+    /// </summary>
+    private static bool DetectErrorInResponse(string text, out string errorMessage)
+    {
+        var lower = text.ToLowerInvariant();
+
+        // API key/authentication errors
+        if (lower.Contains("api key") || lower.Contains("leaked") ||
+            lower.Contains("unauthorized") || lower.Contains("invalid key"))
+        {
+            errorMessage = "Rule evaluation failed: authentication error. Please check your API configuration.";
+            return true;
+        }
+
+        // Quota exhausted / rate limiting
+        if (lower.Contains("quota") || lower.Contains("exhausted") ||
+            lower.Contains("daily limit") || lower.Contains("limit: 0"))
+        {
+            errorMessage = "Rule evaluation quota exceeded. Please try again later.";
+            return true;
+        }
+
+        // Generic error phrases in response
+        if (lower.Contains("error") || lower.Contains("failed") ||
+            lower.Contains("exception") || lower.Contains("unavailable"))
+        {
+            // Only treat as error if it looks like an error message (starts with error phrase)
+            if (text.StartsWith("Error", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("Failed", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("Exception", StringComparison.OrdinalIgnoreCase))
+            {
+                errorMessage = "Rule evaluation encountered an error. Please try again.";
+                return true;
+            }
+        }
+
+        // Response doesn't contain JSON structure (likely an error message)
+        if (!text.Contains("{") || !text.Contains("}"))
+        {
+            // If response is all text without JSON, it's probably an error
+            if (lower.Contains("error") || lower.Contains("failed"))
+            {
+                errorMessage = "Rule evaluation returned an unexpected response. Please try again.";
+                return true;
+            }
+        }
+
+        errorMessage = string.Empty;
+        return false;
+    }
 }

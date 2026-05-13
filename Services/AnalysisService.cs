@@ -130,7 +130,24 @@ namespace glint_backend.Services
                 await channel.Writer.WriteAsync(evt, ct);
             });
 
-            _ = Task.WhenAll(tasks).ContinueWith(_ => channel.Writer.Complete(), CancellationToken.None);
+            _ = Task.WhenAll(tasks).ContinueWith(async task =>
+            {
+                if (task.IsFaulted && task.Exception != null)
+                {
+                    var ex = task.Exception.InnerException ?? task.Exception;
+                    if (ex is AiServiceUnavailableException aiEx)
+                    {
+                        var errorEvent = new AnalysisStreamEvent
+                        {
+                            Result = null,
+                            EventType = "error",
+                            Error = aiEx.Message
+                        };
+                        await channel.Writer.WriteAsync(errorEvent, CancellationToken.None);
+                    }
+                }
+                channel.Writer.Complete();
+            }, CancellationToken.None);
 
             await foreach (var evt in channel.Reader.ReadAllAsync(ct))
                 yield return evt;
@@ -164,8 +181,24 @@ namespace glint_backend.Services
                 await channel.Writer.WriteAsync(evt, ct);
             });
 
-            _ = Task.WhenAll(tasks).ContinueWith(async _ =>
+            _ = Task.WhenAll(tasks).ContinueWith(async task =>
             {
+                if (task.IsFaulted && task.Exception != null)
+                {
+                    var ex = task.Exception.InnerException ?? task.Exception;
+                    if (ex is AiServiceUnavailableException aiEx)
+                    {
+                        var errorEvent = new AnalysisStreamEvent
+                        {
+                            Result = null,
+                            EventType = "error",
+                            Error = aiEx.Message
+                        };
+                        await channel.Writer.WriteAsync(errorEvent, CancellationToken.None);
+                    }
+                }
+                
+                // Mark analysis as completed/failed
                 analysis.Status = AnalysisStatus.Completed;
                 await analysisRepo.UpdateAnalysisAsync(analysis);
                 channel.Writer.Complete();
