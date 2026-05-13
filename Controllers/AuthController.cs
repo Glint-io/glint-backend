@@ -3,11 +3,13 @@ using glint_backend.Services;
 using glint_backend.Services.Interfaces;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace glint_backend.Controllers
 {
     [ApiController]
     [Route("auth")]
+    [EnableRateLimiting("auth")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;

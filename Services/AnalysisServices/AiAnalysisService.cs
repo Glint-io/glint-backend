@@ -46,6 +46,13 @@ public class AiAnalysisService : IAiAnalysisService
             );
 
             var rawText = response.Text ?? string.Empty;
+            
+            // Check if the response contains error indicators instead of a valid analysis
+            if (DetectErrorInResponse(rawText, out var errorMessage))
+            {
+                throw new AiServiceUnavailableException(errorMessage);
+            }
+
             var score = ExtractScore(rawText);
             var feedback = StripScoreLine(rawText).Trim();
 
@@ -74,6 +81,53 @@ public class AiAnalysisService : IAiAnalysisService
 
     private static bool IsRetryable(Exception ex) =>
         !ex.Message.Contains("limit: 0");
+
+    /// <summary>
+    /// Detects if the response text contains error indicators rather than a valid analysis.
+    /// Common error patterns:
+    ///   - API key issues ("API key", "leaked", "invalid", "unauthorized")
+    ///   - Quota/rate limit errors ("quota", "limit", "exhausted", "too many")
+    ///   - Service errors ("error", "failed", "unavailable", "exception")
+    ///   - Malformed responses that don't contain a score
+    /// </summary>
+    private static bool DetectErrorInResponse(string text, out string errorMessage)
+    {
+        var lower = text.ToLowerInvariant();
+
+        // API key/authentication errors
+        if (lower.Contains("api key") || lower.Contains("leaked") || 
+            lower.Contains("unauthorized") || lower.Contains("invalid key"))
+        {
+            errorMessage = "AI service authentication failed. Please check your API configuration.";
+            return true;
+        }
+
+        // Quota exhausted / rate limiting
+        if (lower.Contains("quota") || lower.Contains("exhausted") || 
+            lower.Contains("daily limit") || lower.Contains("limit: 0"))
+        {
+            errorMessage = "AI analysis quota exceeded. Please try again later.";
+            return true;
+        }
+
+        // Generic error phrases in response
+        if (lower.Contains("error") || lower.Contains("failed") || 
+            lower.Contains("exception") || lower.Contains("unavailable"))
+        {
+            // Only treat as error if it looks like an error message, not feedback
+            // (i.e., if "error" appears at the start or the response lacks a score line)
+            if (text.StartsWith("Error", StringComparison.OrdinalIgnoreCase) || 
+                text.StartsWith("Failed", StringComparison.OrdinalIgnoreCase) ||
+                !ScoreRegex.IsMatch(text))
+            {
+                errorMessage = "AI analysis encountered an error. Please try again.";
+                return true;
+            }
+        }
+
+        errorMessage = string.Empty;
+        return false;
+    }
 
     private static string BuildQuotaMessage(Exception ex)
     {

@@ -7,10 +7,13 @@ using glint_backend.Services.Interfaces;
 using glint_backend.Services.AnalysisServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Net.Http.Headers;
+using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 
 namespace glint_backend
 {
@@ -61,6 +64,52 @@ namespace glint_backend
             });
 
             builder.Services.AddAuthorization();
+
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        GetRateLimitPartitionKey(context),
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 120,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0,
+                            AutoReplenishment = true,
+                        }));
+
+                options.AddPolicy("auth", context =>
+                {
+                    var key = GetRateLimitPartitionKey(context);
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        key,
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 8,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0,
+                            AutoReplenishment = true,
+                        });
+                });
+
+                options.AddPolicy("analysis", context =>
+                {
+                    var key = GetRateLimitPartitionKey(context);
+                    var permitLimit = context.User.Identity?.IsAuthenticated == true ? 10 : 4;
+
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        key,
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = permitLimit,
+                            Window = TimeSpan.FromMinutes(3),
+                            QueueLimit = 0,
+                            AutoReplenishment = true,
+                        });
+                });
+            });
 
             // ── Controllers & Swagger ─────────────────────────────────────────────
             builder.Services.AddControllers();
@@ -126,6 +175,7 @@ namespace glint_backend
             builder.Services.AddScoped<IResumeRepository, ResumeRepository>();
             builder.Services.AddScoped<IAnalysisRepository, AnalysisRepository>();
             builder.Services.AddScoped<IJobAdvertisementRepository, JobAdvertisementRepository>();
+            builder.Services.AddSingleton<IAnalysisRunLockService, AnalysisRunLockService>();
 
             // ── Analysis sub-services ─────────────────────────────────────────────
             builder.Services.AddScoped<IAiAnalysisService, AiAnalysisService>();
@@ -165,8 +215,12 @@ namespace glint_backend
                 await ctx.Response.WriteAsJsonAsync(new { error = error?.Error.Message });
             }));
 
-            app.UseHttpsRedirection();
             app.UseCors("AllowFrontend");
+            app.UseRateLimiter();
+            if (!app.Environment.IsDevelopment())
+            {
+                app.UseHttpsRedirection();
+            }
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
@@ -174,6 +228,17 @@ namespace glint_backend
             // ── Bind to Railway's PORT ────────────────────────────────────────────
             var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
             app.Run($"http://0.0.0.0:{port}");
+        }
+
+        private static string GetRateLimitPartitionKey(HttpContext context)
+        {
+            var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                return $"user:{userId}";
+            }
+
+            return $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
         }
     }
 }

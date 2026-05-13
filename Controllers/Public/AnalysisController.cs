@@ -4,6 +4,7 @@ using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using glint_backend.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -11,11 +12,16 @@ namespace glint_backend.Controllers.Public;
 
 [ApiController]
 [Route("analyze")]
+[EnableRateLimiting("analysis")]
 public class AnalysisController(
     IAnalysisService analysisService,
     IFileValidationService fileValidator,
-    IKeywordAnalysisService keywordService) : ControllerBase
+    IKeywordAnalysisService keywordService,
+    IAnalysisRunLockService analysisRunLockService) : ControllerBase
 {
+    private const string ActiveAnalysisMessage =
+        "An analysis is already running. Please wait for it to finish before starting another one.";
+
     // ── Standard (waits for all 3, returns combined result) ──────────────────
 
     [HttpPost]
@@ -28,6 +34,12 @@ public class AnalysisController(
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        var lockKey = GetAnalysisLockKey();
+        if (!analysisRunLockService.TryAcquire(lockKey, out var lease))
+            return Conflict(new { error = ActiveAnalysisMessage });
+
+        using var _ = lease;
 
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = userIdClaim is not null;
@@ -88,6 +100,16 @@ public class AnalysisController(
             Response.StatusCode = 400;
             return;
         }
+
+        var lockKey = GetAnalysisLockKey();
+        if (!analysisRunLockService.TryAcquire(lockKey, out var lease))
+        {
+            Response.StatusCode = StatusCodes.Status409Conflict;
+            await Response.WriteAsJsonAsync(new { error = ActiveAnalysisMessage });
+            return;
+        }
+
+        using var _ = lease;
 
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = userIdClaim is not null;
@@ -173,6 +195,12 @@ public class AnalysisController(
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        var lockKey = GetAnalysisLockKey();
+        if (!analysisRunLockService.TryAcquire(lockKey, out var lease))
+            return Conflict(new { error = ActiveAnalysisMessage });
+
+        using var _ = lease;
+
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = userIdClaim is not null;
 
@@ -233,11 +261,16 @@ public class AnalysisController(
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        var lockKey = GetAnalysisLockKey();
+        if (!analysisRunLockService.TryAcquire(lockKey, out var lease))
+            return Conflict(new { error = ActiveAnalysisMessage });
+
+        using var _ = lease;
+
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var isAuthenticated = userIdClaim is not null;
 
-        try
-        {
+        try { 
             if (!isAuthenticated)
             {
                 if (request.Resume is null)
@@ -280,6 +313,16 @@ public class AnalysisController(
         {
             return StatusCode(StatusCodes.Status429TooManyRequests, new { error = ex.Message });
         }
+    }
+
+    private string GetAnalysisLockKey()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrWhiteSpace(userId))
+            return $"user:{userId}";
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return $"ip:{ip}";
     }
 
     [HttpPost("rules")]

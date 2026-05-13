@@ -10,9 +10,12 @@ public class AnalysisStreamEvent
     public string? JobTitle { get; set; }
     public string? JobAdvertisementNotice { get; set; }
 
-    // The individual method result
-    public AnalysisResultResponse Result { get; set; } = null!;
+    // The individual method result (null for error events)
+    public AnalysisResultResponse? Result { get; set; }
 
-    // "result" | "done" — client can stop listening on "done"
+    // Error message if EventType is "error" (null for result events)
+    public string? Error { get; set; }
+
+    // "result" | "error" — client uses this to handle errors vs successes
     public string EventType { get; set; } = "result";
 }
