@@ -4,6 +4,7 @@ using glint_backend.Exceptions;
 using glint_backend.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using System.Security.Claims;
 
 namespace glint_backend.Controllers.User;
@@ -14,7 +15,8 @@ namespace glint_backend.Controllers.User;
 public class UserController(
     IUserService userService,
     IResumeService resumeService,
-    IJobAdvertisementService jobAdvertisementService) : ControllerBase
+    IJobAdvertisementService jobAdvertisementService,
+    IPdfExtractionService pdfExtractionService) : ControllerBase
 {
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -89,7 +91,26 @@ public class UserController(
         if (resume is null)
             return NotFound(new { error = "Resume not found." });
 
-        return File(resume.FileData, "application/pdf");
+        return File(resume.FileData, ResolveContentType(resume.FileName), resume.FileName);
+    }
+
+    [HttpGet("resume/{id:guid}/preview")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResumePreview(Guid id)
+    {
+        var resume = await resumeService.GetByIdAsync(CurrentUserId, id);
+        if (resume is null)
+            return NotFound(new { error = "Resume not found." });
+
+        var preview = await pdfExtractionService.ExtractAsync(resume.FileData, resume.FileName);
+        return Ok(new ResumePreviewResponse
+        {
+            FileName = preview.FileName,
+            ContentType = ResolveContentType(resume.FileName),
+            Text = preview.Text,
+            PageCount = preview.PageCount,
+        });
     }
 
     [HttpDelete("resume/{id:guid}")]
@@ -184,5 +205,13 @@ public class UserController(
         {
             return NotFound(new { error = ex.Message });
         }
+    }
+
+    private static string ResolveContentType(string fileName)
+    {
+        var provider = new FileExtensionContentTypeProvider();
+        return provider.TryGetContentType(fileName, out var contentType)
+            ? contentType
+            : "application/octet-stream";
     }
 }

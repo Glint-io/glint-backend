@@ -6,5 +6,7 @@ namespace glint_backend.DTOs.Auth
     {
         [Required]
         public string Code { get; set; } = string.Empty;
+
+        public bool UseSessionCookies { get; set; }
     }
 }

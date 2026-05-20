@@ -10,5 +10,10 @@ namespace glint_backend.DTOs.Auth
 
         [Required]
         public string Password { get; set; } = string.Empty;
+
+        /// <summary>
+        /// When true, the API also issues HttpOnly, Secure (in production) session cookies on the API host.
+        /// </summary>
+        public bool UseSessionCookies { get; set; }
     }
 }

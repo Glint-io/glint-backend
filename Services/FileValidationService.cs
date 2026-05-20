@@ -1,6 +1,7 @@
 ﻿using glint_backend.Interfaces;
 using glint_backend.Models;
 using Microsoft.AspNetCore.Http;
+using System.IO.Compression;
 
 namespace glint_backend.Services;
 
@@ -8,7 +9,12 @@ public class FileValidationService : IFileValidationService
 {
     // ── Configuration ────────────────────────────────────────────────────────
     private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
-    private const string AllowedMimeType = "application/pdf";
+    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf",
+        ".docx",
+        ".txt"
+    };
 
     // PDF magic bytes: %PDF
     private static readonly byte[] PdfMagicBytes = [0x25, 0x50, 0x44, 0x46];
@@ -19,12 +25,8 @@ public class FileValidationService : IFileValidationService
     [
         "/JavaScript",
         "/JS",
-        "/AA",
         "/OpenAction",
         "/Launch",
-        "/EmbeddedFile",
-        "/RichMedia",
-        "/XFA",
         "eval(",
         "unescape(",
     ];
@@ -40,9 +42,9 @@ public class FileValidationService : IFileValidationService
             return FileValidationResult.Failure(
                 $"File exceeds the maximum allowed size of {MaxFileSizeBytes / 1024 / 1024} MB.");
 
-        // ── 3. MIME type ──────────────────────────────────────────────────────
-        if (!string.Equals(file.ContentType, AllowedMimeType, StringComparison.OrdinalIgnoreCase))
-            return FileValidationResult.Failure("Only PDF files are accepted.");
+        var extension = Path.GetExtension(file.FileName);
+        if (!AllowedExtensions.Contains(extension))
+            return FileValidationResult.Failure("Supported files are PDF, DOCX, and TXT.");
 
         // ── 4. Read bytes once ────────────────────────────────────────────────
         byte[] fileBytes;
@@ -52,16 +54,25 @@ public class FileValidationService : IFileValidationService
             fileBytes = ms.ToArray();
         }
 
-        // ── 5. Magic bytes ────────────────────────────────────────────────────
-        if (!HasPdfMagicBytes(fileBytes))
-            return FileValidationResult.Failure(
-                "File does not appear to be a valid PDF (magic bytes mismatch).");
+        var validation = extension.ToLowerInvariant() switch
+        {
+            ".pdf" => ValidatePdfBytes(fileBytes),
+            ".docx" => ValidateDocxBytes(fileBytes),
+            ".txt" => ValidateTextBytes(fileBytes),
+            _ => FileValidationResult.Failure("Supported files are PDF, DOCX, and TXT.")
+        };
+
+        if (!validation.IsValid)
+            return validation;
 
         // ── 6. Malicious content scan ─────────────────────────────────────────
-        var maliciousHit = ScanForMaliciousContent(fileBytes);
-        if (maliciousHit is not null)
-            return FileValidationResult.Failure(
-                $"File was rejected: potentially unsafe content detected ({maliciousHit}).");
+        if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            var maliciousHit = ScanForMaliciousContent(fileBytes);
+            if (maliciousHit is not null)
+                return FileValidationResult.Failure(
+                    $"File was rejected: potentially unsafe PDF content detected ({maliciousHit}).");
+        }
 
         return FileValidationResult.Success(fileBytes);
     }
@@ -76,6 +87,52 @@ public class FileValidationService : IFileValidationService
             if (bytes[i] != PdfMagicBytes[i]) return false;
 
         return true;
+    }
+
+    private static bool HasZipMagicBytes(byte[] bytes)
+    {
+        return bytes.Length >= 4
+            && bytes[0] == 0x50
+            && bytes[1] == 0x4B
+            && bytes[2] == 0x03
+            && bytes[3] == 0x04;
+    }
+
+    private static FileValidationResult ValidatePdfBytes(byte[] bytes)
+    {
+        if (!HasPdfMagicBytes(bytes))
+            return FileValidationResult.Failure("File does not appear to be a valid PDF.");
+
+        return FileValidationResult.Success(bytes);
+    }
+
+    private static FileValidationResult ValidateDocxBytes(byte[] bytes)
+    {
+        if (!HasZipMagicBytes(bytes))
+            return FileValidationResult.Failure("File does not appear to be a valid DOCX document.");
+
+        try
+        {
+            using var stream = new MemoryStream(bytes, writable: false);
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
+
+            if (archive.GetEntry("[Content_Types].xml") is null || archive.GetEntry("word/document.xml") is null)
+                return FileValidationResult.Failure("File does not appear to be a valid DOCX document.");
+        }
+        catch
+        {
+            return FileValidationResult.Failure("File does not appear to be a valid DOCX document.");
+        }
+
+        return FileValidationResult.Success(bytes);
+    }
+
+    private static FileValidationResult ValidateTextBytes(byte[] bytes)
+    {
+        if (bytes.Length == 0)
+            return FileValidationResult.Failure("No file was provided.");
+
+        return FileValidationResult.Success(bytes);
     }
 
     private static string? ScanForMaliciousContent(byte[] bytes)

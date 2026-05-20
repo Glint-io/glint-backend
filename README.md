@@ -7,7 +7,7 @@ ASP.NET Core 8 API for [Glint](../README.md). Handles auth, resume storage, job 
 ### Prerequisites
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download)
-- SQL Server (local, Docker, or Azure)
+- [PostgreSQL](https://www.postgresql.org/) (local, Docker, or managed)
 - [Google Gemini API key](https://aistudio.google.com/)
 - [Resend](https://resend.com/) account (email delivery)
 
@@ -26,7 +26,7 @@ Swagger UI is available at `https://localhost:7248/swagger` in development.
 All secrets go through [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) in development. Never commit `appsettings.json` with real values — it is gitignored.
 
 ```bash
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=glint;Trusted_Connection=True;"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=GlintDb;Username=postgres;Password=yourpassword"
 dotnet user-secrets set "Jwt:Key"            "your-secret-min-32-characters-long"
 dotnet user-secrets set "Jwt:Issuer"         "glint-backend"
 dotnet user-secrets set "Jwt:Audience"       "glint-frontend"
@@ -37,6 +37,12 @@ dotnet user-secrets set "Email:From"         "noreply@yourdomain.com"
 dotnet user-secrets set "Frontend:BaseUrl"   "http://localhost:3000"
 dotnet user-secrets set "Cors:AllowedOrigins:0" "http://localhost:3000"
 ```
+
+**CORS + HttpOnly cookies:** The API enables `AllowCredentials()` so the browser can send cookies on `fetch(..., { credentials: "include" })`. `Cors:AllowedOrigins` must list explicit frontend origins (never `*` with credentials).
+
+**Session cookies:** When the client sends `useSessionCookies: true` on `POST /auth/login` or `POST /auth/login/otc`, the API also sets HttpOnly cookies on the **API host** (`glint_access` / `glint_refresh` by default; see the `Auth` section in `appsettings.json`). JWT validation reads the access token from the `glint_access` cookie when no `Authorization` header is sent. `POST /auth/refresh` accepts a refresh token in the JSON body or from the refresh cookie; successful cookie-based refresh issues new cookies. `POST /auth/logout` clears them. You can also send `{ "refreshToken": "...", "promoteToCookieSession": true }` to rotate tokens and begin a cookie session from a browser-only token pair.
+
+> **Localhost caveat:** Different ports on `http://localhost` are often treated as different sites, so `SameSite=Lax` cookies from the API origin may not be included on XHR from the Next.js dev server. Use a same-origin proxy/HTTPS setup for full cookie testing, or rely on bearer tokens in localStorage until production.
 
 ### Database
 
@@ -59,7 +65,7 @@ The project follows a layered pattern: controllers call services, services call 
 
 ```
 Controllers/
-├── AuthController.cs           # /auth — register, login, verify, refresh, reset
+├── AuthController.cs           # /auth — register, login, verify, refresh, logout, reset
 ├── Public/
 │   ├── AnalysisController.cs   # /analyze — guest + authenticated, SSE stream
 │   └── PingController.cs       # /api/ping — health check

@@ -49,7 +49,7 @@ public class AnalysisController(
             if (!isAuthenticated)
             {
                 if (request.Resume is null)
-                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
+                    return BadRequest(new { error = "A resume document is required for guest analysis." });
 
                 var validation = await fileValidator.ValidatePdfAsync(request.Resume);
                 if (!validation.IsValid)
@@ -119,7 +119,7 @@ public class AnalysisController(
 
         if (!isAuthenticated)
         {
-            if (request.Resume is null) { Response.StatusCode = 400; return; }
+                if (request.Resume is null) { Response.StatusCode = 400; return; }
 
             var validation = await fileValidator.ValidatePdfAsync(request.Resume);
             if (!validation.IsValid) { Response.StatusCode = 400; return; }
@@ -209,7 +209,7 @@ public class AnalysisController(
             if (!isAuthenticated)
             {
                 if (request.Resume is null)
-                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
+                    return BadRequest(new { error = "A resume document is required for guest analysis." });
 
                 var validation = await fileValidator.ValidatePdfAsync(request.Resume);
                 if (!validation.IsValid)
@@ -274,7 +274,7 @@ public class AnalysisController(
             if (!isAuthenticated)
             {
                 if (request.Resume is null)
-                    return BadRequest(new { error = "A resume PDF is required for guest analysis." });
+                    return BadRequest(new { error = "A resume document is required for guest analysis." });
 
                 var validation = await fileValidator.ValidatePdfAsync(request.Resume);
                 if (!validation.IsValid)

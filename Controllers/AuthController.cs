@@ -1,7 +1,8 @@
 ﻿using glint_backend.DTOs.Auth;
+using glint_backend.Helpers;
 using glint_backend.Services;
 using glint_backend.Services.Interfaces;
-using Microsoft.AspNetCore.Identity.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -14,11 +15,19 @@ namespace glint_backend.Controllers
     {
         private readonly IAuthService _authService;
         private readonly ILogger<AuthController> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
 
-        public AuthController(IAuthService authService, ILogger<AuthController> logger)
+        public AuthController(
+            IAuthService authService,
+            ILogger<AuthController> logger,
+            IConfiguration configuration,
+            IWebHostEnvironment environment)
         {
             _authService = authService;
             _logger = logger;
+            _configuration = configuration;
+            _environment = environment;
         }
 
         [HttpPost("register")]
@@ -50,6 +59,8 @@ namespace glint_backend.Controllers
             try
             {
                 var result = await _authService.LoginAsync(request);
+                if (request.UseSessionCookies)
+                    AuthCookieHelper.AppendAuthCookies(Response, result, _configuration, _environment);
                 return Ok(result);
             }
             catch (Exception ex) when (ex.Message == "Invalid email or password")
@@ -73,6 +84,8 @@ namespace glint_backend.Controllers
             try
             {
                 var result = await _authService.LoginWithOtcAsync(request);
+                if (request.UseSessionCookies)
+                    AuthCookieHelper.AppendAuthCookies(Response, result, _configuration, _environment);
                 return Ok(result);
             }
             catch (Exception ex) when (ex.Message == "Invalid or expired code")
@@ -108,11 +121,30 @@ namespace glint_backend.Controllers
         }
 
         [HttpPost("refresh")]
-        public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
+        public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest? request)
         {
+            var refreshCookieName = _configuration["Auth:RefreshCookie"] ?? "glint_refresh";
+
+            string? refreshToken = null;
+            if (!string.IsNullOrWhiteSpace(request?.RefreshToken))
+                refreshToken = request.RefreshToken;
+            else if (Request.Cookies.TryGetValue(refreshCookieName, out var cookieToken) && !string.IsNullOrEmpty(cookieToken))
+                refreshToken = cookieToken;
+
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                return Unauthorized(new { error = "Invalid or expired refresh token" });
+
             try
             {
-                var result = await _authService.RefreshAsync(request);
+                var result = await _authService.RefreshAsync(new RefreshTokenRequest { RefreshToken = refreshToken });
+
+                var suppliedBodyToken = !string.IsNullOrWhiteSpace(request?.RefreshToken);
+                var usedCookieOnly = !suppliedBodyToken;
+                var promote = request?.PromoteToCookieSession == true;
+
+                if (promote || usedCookieOnly)
+                    AuthCookieHelper.AppendAuthCookies(Response, result, _configuration, _environment);
+
                 return Ok(result);
             }
             catch (Exception ex) when (ex.Message == "Invalid or expired refresh token")
@@ -124,6 +156,14 @@ namespace glint_backend.Controllers
                 _logger.LogError(ex, "Unexpected error during token refresh");
                 return StatusCode(500, new { error = "An unexpected error occurred. Please try again." });
             }
+        }
+
+        [HttpPost("logout")]
+        [AllowAnonymous]
+        public IActionResult Logout()
+        {
+            AuthCookieHelper.DeleteAuthCookies(Response, _configuration, _environment);
+            return Ok(new { message = "Signed out" });
         }
 
         [HttpPost("resend-verification")]

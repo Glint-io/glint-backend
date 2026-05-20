@@ -106,10 +106,10 @@ namespace glint_backend.Services
                 new Claim("email", user.Email)
             };
             var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
+                issuer: GetJwtIssuer(),
+                audience: GetJwtAudience(),
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:ExpiryMinutes"]!)),
+                expires: DateTime.UtcNow.AddMinutes(GetJwtExpiryMinutes()),
                 signingCredentials: credentials
             );
             return new JwtSecurityTokenHandler().WriteToken(token);
@@ -156,6 +156,9 @@ namespace glint_backend.Services
 
         public async Task<AuthResponse> RefreshAsync(RefreshTokenRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                throw new Exception("Invalid or expired refresh token");
+
             var existing = await _tokens.GetByTokenAsync(request.RefreshToken);
             if (existing is null || existing.IsRevoked || existing.ExpiresAt < DateTime.UtcNow)
                 throw new Exception("Invalid or expired refresh token");
@@ -243,5 +246,12 @@ namespace glint_backend.Services
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             await _users.UpdateAsync(user);
         }
+
+        private string GetJwtIssuer() => _config["Jwt:Issuer"] ?? "Glint";
+
+        private string GetJwtAudience() => _config["Jwt:Audience"] ?? "Glint";
+
+        private int GetJwtExpiryMinutes() =>
+            _config.GetValue<int?>("Jwt:ExpiryMinutes") ?? 15;
     }
 }
